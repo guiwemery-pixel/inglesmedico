@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inglês Médico</title>
+  <meta name="description" content="Plataforma gratuita para praticar inglês médico: lições por níveis, flashcards, dicionário pessoal, casos clínicos e pronúncia.">
+  <meta name="theme-color" content="#0f9d8a">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="nav" aria-label="Navegação principal">
+      <div class="brand"><span class="brand-icon">🩺</span><span class="brand-name">Inglês<b>Médico</b></span></div>
+      <a href="#/learn" data-route="learn"><span class="ni">🏠</span><span class="nl">Aprender</span></a>
+      <a href="#/practice" data-route="practice"><span class="ni">🎯</span><span class="nl">Praticar</span></a>
+      <a href="#/cards" data-route="cards"><span class="ni">🃏</span><span class="nl">Flashcards</span></a>
+      <a href="#/dict" data-route="dict"><span class="ni">📖</span><span class="nl">Dicionário</span></a>
+      <a href="#/mine" data-route="mine"><span class="ni">⭐</span><span class="nl">Meu dicionário</span></a>
+      <a href="#/cases" data-route="cases"><span class="ni">🩹</span><span class="nl">Casos clínicos</span></a>
+      <a href="#/profile" data-route="profile"><span class="ni">👤</span><span class="nl">Perfil</span></a>
+    </nav>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="stat" title="Ofensiva (dias seguidos)"><span>🔥</span><b id="tb-streak">0</b></div>
+        <div class="stat" title="XP total"><span>⚡</span><b id="tb-xp">0</b></div>
+        <div class="stat" title="Seu nível"><span>🎓</span><b id="tb-level">1</b></div>
+        <div class="goal" title="Meta diária">
+          <div class="goal-bar"><div id="tb-goal-fill"></div></div>
+          <small id="tb-goal-text">0/30 XP</small>
+        </div>
+      </header>
+      <main id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <!-- Player de lições / exercícios (tela cheia) -->
+  <div id="player" class="player" hidden>
+    <div class="player-top">
+      <button class="icon-btn" id="pl-close" aria-label="Sair da lição">✕</button>
+      <div class="pl-progress"><div id="pl-fill"></div></div>
+      <div class="pl-extra" id="pl-extra"></div>
+    </div>
+    <div class="player-body" id="pl-body"></div>
+    <div class="player-foot" id="pl-foot">
+      <div class="fb" id="pl-fb"></div>
+      <div class="foot-actions">
+        <button class="btn ghost" id="pl-skip">Pular</button>
+        <button class="btn primary" id="pl-check" disabled>Verificar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" id="modal-card"></div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
