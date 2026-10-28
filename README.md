@@ -7,7 +7,15 @@ Plataforma gratuita, em HTML/CSS/JavaScript puro, para praticar **inglês médic
 - **Online:** ative o GitHub Pages (Settings → Pages → Deploy from branch → `main` / root) e acesse a URL gerada.
 - **Local:** basta abrir o `index.html` no navegador. Não tem instalação nem build.
 
-O progresso fica salvo no próprio navegador (`localStorage`). Em **Perfil → Seus dados** dá para exportar e importar um backup e levar o progresso para outro aparelho.
+### Salvar e levar o progresso para outro navegador
+
+O progresso fica salvo no próprio navegador (`localStorage`). Clique no **💾** da barra superior (ou em **Perfil → Salvar e transferir progresso**) e escolha uma opção:
+
+- **Arquivo JSON:** baixe o arquivo `.json` e, no outro navegador, use **Carregar arquivo**. É a melhor opção para guardar backup (Drive, e-mail).
+- **Link de transferência:** copie o link e abra-o no outro navegador ou celular. Os dados vão compactados dentro do próprio link e nada é enviado para servidor.
+- **Copiar/colar código:** a mesma ideia do link, só que em texto. O campo de colar também aceita o JSON ou o link.
+
+Na hora de carregar, se o navegador já tiver progresso, dá para **Mesclar** (fica com o melhor dos dois: XP, lições, flashcards, meu dicionário e anotações) ou **Substituir**. A tela inicial lembra de fazer backup quando passam 7 dias sem um.
 
 ## Funcionalidades
 

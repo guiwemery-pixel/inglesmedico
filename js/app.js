@@ -720,6 +720,9 @@
       <p class="quote">${esc(quote)}</p>
       <div class="row" style="margin-top:12px">${nx ? `<button class="btn" id="go-next">▶ Continuar</button>` : ""}
       ${due ? `<button class="btn" id="go-review">🔁 Revisar ${due} palavra${due > 1 ? "s" : ""}</button>` : ""}</div></div>
+      ${state.xp >= 30 && (!state.lastBackup || Date.now() - state.lastBackup > 7 * 864e5) ? `<div class="card row" style="margin-bottom:12px"><span style="font-size:1.5rem">💾</span>
+        <span class="small" style="flex:1">Seu progresso fica só neste navegador. ${state.lastBackup ? "Faz mais de 7 dias desde o último backup." : "Que tal salvar um backup?"}</span>
+        <button class="btn small primary" data-backup>Salvar agora</button></div>` : ""}
       <div class="card"><div class="row"><span class="tag">Palavra do dia</span><span class="spacer"></span>${speakBtn(wod.en)}${starBtn(wod.id)}</div>
       <h2 style="margin-top:6px">${esc(wod.en)} <span class="muted" style="font-weight:600">— ${esc(wod.pt)}</span></h2>${pronHtml(wod)}
       <p class="small" style="margin:6px 0 0">${esc(wod.def)}<br><i>${esc(wod.ex)}</i></p></div>`;
@@ -1070,8 +1073,9 @@
         <div class="setting"><label for="st-speech">Exercícios de fala (microfone)</label>${chk("st-speech", s.speech)}</div>
         <div class="setting"><label for="st-free">Modo livre (desbloquear todas as unidades)</label>${chk("st-free", s.free)}</div>
         <div class="setting"><label for="st-theme">Tema</label>${sel("st-theme", [["auto", "Automático"], ["light", "Claro"], ["dark", "Escuro"]], s.theme)}</div></div>
-      <div class="card"><h3>💾 Seus dados</h3><p class="muted small">O progresso fica salvo neste navegador. Faça backup para levar para outro aparelho.</p>
-        <div class="row"><button class="btn small" id="bk-exp">⬇ Exportar backup</button><label class="btn small" for="bk-imp">⬆ Importar backup</label><input type="file" id="bk-imp" accept="application/json" hidden>
+      <div class="card"><h3>💾 Salvar e transferir progresso</h3><p class="muted small">O progresso fica salvo só neste navegador. Para abrir em outro navegador ou aparelho, salve um arquivo JSON ou gere um link de transferência.
+        ${state.lastBackup ? "Último backup: " + new Date(state.lastBackup).toLocaleString("pt-BR") + "." : "Você ainda não fez nenhum backup."}</p>
+        <div class="row"><button class="btn small primary" id="bk-open">💾 Salvar / carregar dados</button>
         <button class="btn small danger" id="bk-reset">Apagar progresso</button></div></div>
       <div class="card"><h3>📎 Recursos e fontes</h3><p class="muted small">Dicionários, fontes oficiais, podcasts e dicas de estudo.</p><a class="btn small primary" href="#/resources">Abrir recursos</a></div>`;
     const bind = (id, fn) => $("#" + id).addEventListener("change", (e) => { fn(e.target); save(); applyTheme(); renderTopbar(); });
@@ -1085,18 +1089,132 @@
     bind("st-speech", (t) => (s.speech = t.checked));
     bind("st-free", (t) => (s.free = t.checked));
     bind("st-theme", (t) => (s.theme = t.value));
-    $("#bk-exp").addEventListener("click", () => download("ingles-medico-backup-" + dayStr() + ".json", JSON.stringify(state, null, 1), "application/json"));
-    $("#bk-imp").addEventListener("change", (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      f.text().then((txt) => {
-        try { const d = JSON.parse(txt); if (typeof d !== "object" || d.xp == null) throw new Error(); localStorage.setItem(KEY, JSON.stringify(d)); state = load(); applyTheme(); toast("✅ Backup importado"); route(); }
-        catch (err) { toast("Arquivo inválido."); }
-      });
-    });
+    $("#bk-open").addEventListener("click", backupModal);
     $("#bk-reset").addEventListener("click", () => {
       if (!confirm("Apagar TODO o progresso, inclusive seu dicionário? Esta ação não pode ser desfeita.")) return;
       state = JSON.parse(JSON.stringify(DEFAULTS)); save(); applyTheme(); route(); onboarding();
     });
+  };
+
+  /* ---------- Salvar / transferir dados ---------- */
+  // Formato do arquivo: { app, version, exportedAt, data }. Também aceita backups antigos (o estado puro).
+  function backupPackage() { return { app: "inglesmedico", version: 1, exportedAt: new Date().toISOString(), data: state }; }
+  function markBackup() { state.lastBackup = Date.now(); save(); }
+  const b64url = (bytes) => { let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  const unb64url = (str) => { const bin = atob(str.replace(/-/g, "+").replace(/_/g, "/")); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; };
+  // Código compacto: "z" + gzip em base64url (ou "j" + JSON em base64url se o navegador não tiver compressão)
+  async function encodeCode(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    if (window.CompressionStream) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+      return "z" + b64url(new Uint8Array(await new Response(stream).arrayBuffer()));
+    }
+    return "j" + b64url(bytes);
+  }
+  async function decodeAny(text) {
+    let t = String(text || "").trim();
+    if (!t) throw new Error("vazio");
+    if (t[0] === "{") return JSON.parse(t);
+    const m = t.match(/#\/import\/([A-Za-z0-9_-]+)/); if (m) t = m[1];
+    const kind = t[0], bytes = unb64url(t.slice(1));
+    if (kind === "z") {
+      if (!window.DecompressionStream) throw new Error("Navegador sem suporte a descompressão");
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      return JSON.parse(await new Response(stream).text());
+    }
+    if (kind === "j") return JSON.parse(new TextDecoder().decode(bytes));
+    throw new Error("formato desconhecido");
+  }
+  function unpack(obj) {
+    const d = obj && typeof obj === "object" && obj.data && typeof obj.data === "object" ? obj.data : obj;
+    if (!d || typeof d !== "object" || typeof d.xp !== "number" || typeof d.srs !== "object") throw new Error("dados inválidos");
+    return { data: d, exportedAt: obj.exportedAt || null };
+  }
+  // Mescla dois progressos sem perder nada: fica com o melhor de cada um.
+  function mergeStates(a, b) {
+    const m = JSON.parse(JSON.stringify(a)), max = Math.max;
+    m.name = a.name || b.name;
+    m.daily = Object.assign({}, a.daily); Object.entries(b.daily || {}).forEach(([d, x]) => { m.daily[d] = max(m.daily[d] || 0, x); });
+    m.xp = max(a.xp, b.xp || 0, Object.values(m.daily).reduce((s, x) => s + x, 0));
+    if ((b.lastDay || "") > (a.lastDay || "")) { m.lastDay = b.lastDay; m.streak = b.streak; }
+    else if (b.lastDay === a.lastDay) m.streak = max(a.streak, b.streak || 0);
+    m.bestStreak = max(a.bestStreak || 0, b.bestStreak || 0);
+    m.units = Object.assign({}, a.units); Object.entries(b.units || {}).forEach(([u, d]) => { m.units[u] = Array.from(new Set((m.units[u] || []).concat(d))); });
+    m.srs = Object.assign({}, a.srs); Object.entries(b.srs || {}).forEach(([id, x]) => { if (!m.srs[id] || (x.seen || 0) > (m.srs[id].seen || 0)) m.srs[id] = x; });
+    m.mine = Object.assign({}, b.mine, a.mine); Object.keys(m.mine).forEach((id) => { if (a.mine[id] && b.mine && b.mine[id] && !a.mine[id].note) m.mine[id] = b.mine[id]; });
+    m.custom = a.custom.concat((b.custom || []).filter((c) => !a.custom.some((x) => x.id === c.id)));
+    m.mistakes = Object.assign({}, a.mistakes); Object.entries(b.mistakes || {}).forEach(([id, n]) => { m.mistakes[id] = max(m.mistakes[id] || 0, n); });
+    m.recent = Array.from(new Set(a.recent.concat(b.recent || []))).slice(0, 40);
+    m.cases = Object.assign({}, b.cases, a.cases);
+    m.badges = Object.assign({}, b.badges, a.badges);
+    Object.keys(m.stats).forEach((k) => { m.stats[k] = max(a.stats[k] || 0, (b.stats || {})[k] || 0); });
+    m.onboarded = true;
+    return m;
+  }
+  function summary(d) {
+    const learned = Object.values(d.srs || {}).filter((x) => x.seen > 0).length;
+    return `<b>${d.xp}</b> XP · <b>${learned}</b> palavras praticadas · <b>${Object.keys(d.mine || {}).length}</b> no meu dicionário · <b>${Object.values(d.units || {}).reduce((s, u) => s + u.length, 0)}</b> etapas concluídas`;
+  }
+  function applyImport(data, mode) {
+    const base = JSON.parse(JSON.stringify(DEFAULTS));
+    const incoming = Object.assign(base, data, { stats: Object.assign(base.stats, data.stats || {}), settings: Object.assign(base.settings, data.settings || {}) });
+    state = mode === "merge" ? mergeStates(state, incoming) : incoming;
+    state.onboarded = true; save(); applyTheme(); renderTopbar();
+    toast(mode === "merge" ? "✅ Progresso mesclado!" : "✅ Progresso carregado!");
+  }
+  function confirmImport(text, after) {
+    decodeAny(text).then(unpack).then(({ data, exportedAt }) => {
+      const hasLocal = state.xp > 0 || Object.keys(state.mine).length > 0;
+      openModal(`<div class="row"><h2 style="margin:0">Carregar progresso</h2><span class="spacer"></span><button class="icon-btn" data-close aria-label="Fechar">✕</button></div>
+        <div class="card" style="margin:12px 0"><div class="muted small">Dados encontrados${exportedAt ? " (salvos em " + new Date(exportedAt).toLocaleString("pt-BR") + ")" : ""}${data.name ? " — " + esc(data.name) : ""}</div><div>${summary(data)}</div></div>
+        ${hasLocal ? `<div class="card" style="margin:0 0 12px"><div class="muted small">Progresso atual deste navegador</div><div>${summary(state)}</div></div>
+          <p class="small"><b>Mesclar</b> junta os dois (fica com o melhor de cada um). <b>Substituir</b> apaga o progresso deste navegador.</p>` : ""}
+        <div class="row"><span class="spacer"></span><button class="btn ghost" data-close>Cancelar</button>
+        ${hasLocal ? `<button class="btn" id="imp-replace">Substituir</button><button class="btn primary" id="imp-merge">Mesclar</button>` : `<button class="btn primary" id="imp-replace">Carregar</button>`}</div>`, (mm) => {
+        $("#imp-replace", mm).addEventListener("click", () => { applyImport(data, "replace"); closeModal(); if (after) after(true); else route(); });
+        const mg = $("#imp-merge", mm); if (mg) mg.addEventListener("click", () => { applyImport(data, "merge"); closeModal(); if (after) after(true); else route(); });
+        $$("[data-close]", mm).forEach((b) => b.addEventListener("click", () => { if (after) setTimeout(() => after(false), 0); }));
+      });
+    }).catch(() => { toast("❌ Não foi possível ler os dados. Verifique o arquivo, link ou código."); if (after) after(false); });
+  }
+  async function copyText(text, okMsg) {
+    try { await navigator.clipboard.writeText(text); toast(okMsg); return true; }
+    catch (e) { return false; }
+  }
+  function backupModal() {
+    openModal(`<div class="row"><h2 style="margin:0">💾 Salvar e transferir progresso</h2><span class="spacer"></span><button class="icon-btn" data-close aria-label="Fechar">✕</button></div>
+      <p class="muted small">Seu progresso (XP, lições, flashcards, meu dicionário e anotações) fica salvo só neste navegador. Use uma das opções para levá-lo a outro navegador ou aparelho.</p>
+      <div class="card"><h3>📁 Arquivo JSON</h3><p class="small muted">Baixe o arquivo e, no outro navegador, carregue-o aqui. Bom para guardar como backup (Drive, e-mail…).</p>
+        <div class="row"><button class="btn small primary" id="bk-file">⬇ Baixar arquivo .json</button><label class="btn small" for="bk-load">⬆ Carregar arquivo</label><input type="file" id="bk-load" accept=".json,application/json" hidden></div></div>
+      <div class="card"><h3>🔗 Link de transferência</h3><p class="small muted">Copie o link e abra-o no outro navegador (mande para você pelo WhatsApp ou e-mail). Os dados vão dentro do próprio link; nada é enviado para um servidor.</p>
+        <div class="row"><button class="btn small primary" id="bk-link">🔗 Copiar link</button><button class="btn small" id="bk-code">📋 Copiar código</button></div>
+        <textarea id="bk-out" rows="3" readonly hidden style="margin-top:8px;font-size:.75rem"></textarea></div>
+      <div class="card"><h3>📥 Colar código ou link</h3><p class="small muted">Recebeu um código, link ou o texto JSON? Cole aqui.</p>
+        <textarea id="bk-in" rows="3" placeholder="Cole aqui o código, o link ou o JSON…" style="font-size:.8rem"></textarea>
+        <div class="row" style="margin-top:8px"><span class="spacer"></span><button class="btn small primary" id="bk-paste">Carregar</button></div></div>`, (m) => {
+      $("#bk-file", m).addEventListener("click", () => {
+        download("ingles-medico-" + (state.name ? slug(state.name) + "-" : "") + dayStr() + ".json", JSON.stringify(backupPackage(), null, 1), "application/json");
+        markBackup(); toast("⬇ Arquivo salvo! Guarde-o em um lugar seguro.");
+      });
+      $("#bk-load", m).addEventListener("change", (e) => { const f = e.target.files[0]; if (f) f.text().then((t) => confirmImport(t)); });
+      const show = (text) => { const o = $("#bk-out", m); o.hidden = false; o.value = text; o.focus(); o.select(); };
+      $("#bk-link", m).addEventListener("click", async () => {
+        const link = location.href.split("#")[0] + "#/import/" + await encodeCode(backupPackage());
+        markBackup(); show(link);
+        if (!(await copyText(link, "🔗 Link copiado! Abra-o no outro navegador."))) toast("Copie o link selecionado abaixo.");
+      });
+      $("#bk-code", m).addEventListener("click", async () => {
+        const code = await encodeCode(backupPackage());
+        markBackup(); show(code);
+        if (!(await copyText(code, "📋 Código copiado! Cole-o no outro navegador."))) toast("Copie o código selecionado abaixo.");
+      });
+      $("#bk-paste", m).addEventListener("click", () => confirmImport($("#bk-in", m).value));
+    });
+  }
+  ROUTES.import = function (code) {
+    ROUTES.learn();
+    history.replaceState(null, "", location.pathname + location.search + "#/learn");
+    if (code) confirmImport(code, (ok) => { route(); if (!ok) onboarding(); });
   };
 
   ROUTES.resources = function () {
@@ -1131,7 +1249,9 @@
   }
 
   /* ======================= Início ======================= */
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-backup]")) backupModal(); });
   applyTheme();
+  const openedByLink = location.hash.startsWith("#/import/");
   route();
-  onboarding();
+  if (!openedByLink) onboarding();
 })();
