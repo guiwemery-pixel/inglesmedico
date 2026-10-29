@@ -28,7 +28,8 @@ Na hora de carregar, se o navegador já tiver progresso, dá para **Mesclar** (f
 | **Dicionário** | 320 termos com tradução, pronúncia aproximada, definição em inglês simples, frase de exemplo, áudio e links para YouGlish, Cambridge e Merriam-Webster. |
 | **⭐ Meu dicionário** | Salve as palavras difíceis com ★ (no dicionário, nas lições e nos flashcards), crie palavras próprias e faça anotações. As palavras que você erra aparecem como sugestão. Dá para exportar para Anki ou CSV e imprimir. |
 | **Casos clínicos** | 8 casos curtos em inglês simples, com glossário clicável, áudio e perguntas de compreensão. |
-| **Perfil** | Nível (de Calouro a Lenda da Medicina), estatísticas, últimos 7 dias, 19 conquistas e configurações: sotaque US/UK, velocidade do áudio, meta diária, tema claro/escuro. |
+| **Progresso** | Nível (de Calouro a Lenda da Medicina), XP, ofensiva, precisão, gráfico de XP dos últimos 14 dias com a meta e 20 conquistas com o andamento de cada uma. |
+| **Ajustes** | Nome, meta diária, sotaque US/UK, velocidade do áudio, efeitos, exercícios de fala, modo livre, tema e backup. |
 
 O áudio usa a síntese de voz do próprio navegador. O exercício de pronúncia precisa de reconhecimento de voz (Chrome ou Edge).
 
@@ -44,8 +45,19 @@ O restante foi ampliado com base em informações de fontes oficiais de saúde: 
 index.html      # casca da aplicação
 css/style.css   # estilos (responsivo, tema claro/escuro)
 js/data.js      # todo o conteúdo: unidades, palavras, leituras, casos, recursos
-js/app.js       # lógica: trilha, exercícios, SRS, dicionário, perfil
+js/charts.js    # gráfico de barras do Progresso (SVG, sem dependências)
+js/app.js       # lógica: trilha, exercícios, SRS, dicionário, progresso, ajustes
 ```
+
+### Design
+
+O visual segue o estilo *Editorial greeting* da skill [taste-skill](https://github.com/leonxlnx/taste-skill):
+
+- uma saudação em serifa que traz o dado do dia ("Bom dia, Ana. 5 palavras para revisar…");
+- painéis em tons planos, sem sombras, gradientes nem emoji;
+- Instrument Sans e Instrument Serif;
+- o verde-azulado como única cor de destaque, usada nos dados: a trilha de 5 etapas de cada unidade e o dia de hoje no gráfico;
+- tema claro e escuro.
 
 ### Adicionar conteúdo
 
