@@ -5,75 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inglês Médico</title>
   <meta name="description" content="Plataforma gratuita para praticar inglês médico: trilha com níveis, lições curtas, flashcards, dicionário pessoal, casos clínicos e pronúncia.">
-  <meta name="theme-color" content="#ffffff">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M6 3h16a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4h-8l-6 5v-5H6a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4z' fill='%231b6e66'/%3E%3Cpath d='M14 7.5v9M9.5 12h9' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#58cc02">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Ícones de contorno (16px, traço 1,5) -->
+  <!-- Ícones pequenos (traço) e o mascote, o Doc -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
-    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
-    <symbol id="i-cards" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></symbol>
-    <symbol id="i-case" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></symbol>
-    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h14v15H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h14"/></symbol>
-    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
-    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V11M11 20V5M17 20v-6M3 20h18"/></symbol>
-    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
-    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol>
-    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
     <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
     <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
-    <symbol id="i-mark" viewBox="0 0 28 28"><path d="M6 3h16a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4h-8l-6 5v-5H6a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4z" fill="#1b6e66" stroke="none"/><path d="M14 7.5v9M9.5 12h9" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+    <symbol id="i-lesson" viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.7 6.3.9-4.6 4.4 1.1 6.2L12 17l-5.6 3 1.1-6.2-4.6-4.4 6.3-.9z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-done" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L19.5 7" stroke-width="3.6"/></symbol>
+    <symbol id="i-bookf" viewBox="0 0 24 24"><path d="M3 5.5C5.5 4 8.5 4 11 5.5v14C8.5 18 5.5 18 3 19.5zM21 5.5C18.5 4 15.5 4 13 5.5v14c2.5-1.5 5.5-1.5 8 0z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 3h10v5a5 5 0 0 1-10 0zM10 13.5h4v3h3V20H7v-3.5h3z" fill="currentColor" stroke="none"/><path d="M7 5H3.5v1.5A3.5 3.5 0 0 0 7 10M17 5h3.5v1.5A3.5 3.5 0 0 1 17 10" stroke-width="2"/></symbol>
+    <symbol id="doc" viewBox="0 0 120 130">
+      <ellipse cx="60" cy="124" rx="34" ry="5" fill="#000" opacity=".08"/>
+      <ellipse cx="22" cy="86" rx="9" ry="14" fill="#58a700" transform="rotate(20 22 86)"/>
+      <ellipse cx="98" cy="86" rx="9" ry="14" fill="#58a700" transform="rotate(-20 98 86)"/>
+      <path d="M20 62Q20 14 60 14Q100 14 100 62V100Q100 121 79 121H41Q20 121 20 100Z" fill="#58cc02"/>
+      <path d="M36 121V84Q60 98 84 84V121Z" fill="#ffffff"/>
+      <path d="M60 92V121" stroke="#e5e5e5" stroke-width="2"/>
+      <path d="M43 84Q42 104 58 106Q72 106 72 96" fill="none" stroke="#4b4b4b" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="72" cy="96" r="5" fill="#afafaf" stroke="#4b4b4b" stroke-width="2.5"/>
+      <path d="M28 30Q60 18 92 30" fill="none" stroke="#4b4b4b" stroke-width="3"/>
+      <circle cx="60" cy="23" r="9" fill="#ffffff" stroke="#afafaf" stroke-width="3"/><circle cx="60" cy="23" r="3" fill="#1cb0f6"/>
+      <circle cx="45" cy="54" r="13" fill="#ffffff"/><circle cx="75" cy="54" r="13" fill="#ffffff"/>
+      <circle cx="47" cy="56" r="6.5" fill="#3c3c3c"/><circle cx="77" cy="56" r="6.5" fill="#3c3c3c"/>
+      <circle cx="49" cy="53" r="2.2" fill="#ffffff"/><circle cx="79" cy="53" r="2.2" fill="#ffffff"/>
+      <ellipse cx="34" cy="70" rx="6" ry="3.5" fill="#ff86a4" opacity=".7"/><ellipse cx="86" cy="70" rx="6" ry="3.5" fill="#ff86a4" opacity=".7"/>
+      <path d="M51 71Q60 79 69 71" fill="none" stroke="#3c3c3c" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
   </svg>
 
   <div class="app">
-    <aside class="side" id="side" aria-label="Navegação principal">
-      <div class="row">
-        <a class="brand" href="#/learn"><svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg><span class="brand-name">Inglês Médico</span></a>
-        <button class="icon-btn side-close" id="side-close" aria-label="Fechar menu"><svg class="ico lg"><use href="#i-x"/></svg></button>
-      </div>
+    <aside class="side" aria-label="Navegação principal">
+      <a class="logo" href="#/learn">inglês<span>médico</span></a>
       <nav class="nav">
-        <div class="nav-label">Estudar</div>
-        <a href="#/learn" data-route="learn"><svg class="ico"><use href="#i-home"/></svg>Início</a>
-        <a href="#/practice" data-route="practice"><svg class="ico"><use href="#i-target"/></svg>Praticar</a>
-        <a href="#/cards" data-route="cards"><svg class="ico"><use href="#i-cards"/></svg>Flashcards<span class="count" id="nav-due"></span></a>
-        <a href="#/cases" data-route="cases"><svg class="ico"><use href="#i-case"/></svg>Casos clínicos</a>
-        <div class="nav-group nav-label">Vocabulário</div>
-        <a href="#/dict" data-route="dict"><svg class="ico"><use href="#i-book"/></svg>Dicionário</a>
-        <a href="#/mine" data-route="mine"><svg class="ico"><use href="#i-star"/></svg>Meu dicionário</a>
-        <div class="nav-group nav-label">Você</div>
-        <a href="#/profile" data-route="profile"><svg class="ico"><use href="#i-chart"/></svg>Progresso</a>
-        <a href="#/settings" data-route="settings"><svg class="ico"><use href="#i-sliders"/></svg>Ajustes</a>
+        <a href="#/learn" data-route="learn"><span class="ni">🏠</span><span class="nl">Aprender</span></a>
+        <a href="#/practice" data-route="practice"><span class="ni">🎯</span><span class="nl">Praticar</span></a>
+        <a href="#/cards" data-route="cards"><span class="ni">🃏</span><span class="nl">Flashcards</span><span class="count" id="nav-due"></span></a>
+        <a href="#/cases" data-route="cases"><span class="ni">🩹</span><span class="nl">Casos clínicos</span></a>
+        <a href="#/dict" data-route="dict"><span class="ni">📖</span><span class="nl">Dicionário</span></a>
+        <a href="#/mine" data-route="mine"><span class="ni">⭐</span><span class="nl">Meu dicionário</span></a>
+        <a href="#/profile" data-route="profile"><span class="ni">📊</span><span class="nl">Progresso</span></a>
+        <a href="#/settings" data-route="settings"><span class="ni">⚙️</span><span class="nl">Ajustes</span></a>
       </nav>
-      <div class="side-foot nav">
-        <button data-backup><svg class="ico"><use href="#i-save"/></svg>Salvar progresso</button>
-        <a href="#/resources" data-route="resources"><svg class="ico"><use href="#i-link"/></svg>Recursos e fontes</a>
-        <a class="user" href="#/profile" id="user-row"></a>
+      <div class="side-foot">
+        <button class="nav-btn" data-backup><span class="ni">💾</span><span class="nl">Salvar dados</span></button>
+        <a class="nav-btn" href="#/resources" data-route="resources"><span class="ni">📎</span><span class="nl">Recursos</span></a>
       </div>
     </aside>
 
     <div class="main">
-      <header class="phonebar">
-        <svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
-        <b id="phone-title">Início</b>
-        <span class="spacer"></span>
-        <button class="icon-btn" id="menu-btn" aria-label="Abrir menu" aria-controls="side"><svg class="ico lg"><use href="#i-menu"/></svg></button>
-      </header>
-      <main id="view" tabindex="-1"></main>
+      <header class="mbar" id="mbar"></header>
+      <div class="content">
+        <main id="view" tabindex="-1"></main>
+        <aside class="rail" id="rail" aria-label="Seu dia"></aside>
+      </div>
     </div>
   </div>
+
+  <nav class="bnav" aria-label="Navegação">
+    <a href="#/learn" data-route="learn"><span class="ni">🏠</span><span class="nl">Aprender</span></a>
+    <a href="#/practice" data-route="practice"><span class="ni">🎯</span><span class="nl">Praticar</span></a>
+    <a href="#/cards" data-route="cards"><span class="ni">🃏</span><span class="nl">Cards</span></a>
+    <a href="#/cases" data-route="cases"><span class="ni">🩹</span><span class="nl">Casos</span></a>
+    <a href="#/dict" data-route="dict"><span class="ni">📖</span><span class="nl">Dicionário</span></a>
+    <a href="#/mine" data-route="mine"><span class="ni">⭐</span><span class="nl">Meu</span></a>
+    <a href="#/profile" data-route="profile"><span class="ni">📊</span><span class="nl">Perfil</span></a>
+  </nav>
 
   <!-- Player de lições e exercícios (tela cheia) -->
   <div id="player" class="player" hidden>

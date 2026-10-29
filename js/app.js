@@ -52,7 +52,7 @@
   const KEY = "inglesmedico_v1";
   const DEFAULTS = {
     name: "", onboarded: false, xp: 0, daily: {}, streak: 0, bestStreak: 0, lastDay: null,
-    units: {}, srs: {}, mine: {}, custom: [], mistakes: {}, recent: [], cases: {}, badges: {},
+    units: {}, srs: {}, mine: {}, custom: [], mistakes: {}, recent: [], cases: {}, badges: {}, today: null,
     stats: { answers: 0, correct: 0, lessons: 0, perfect: 0, timedBest: 0, speakOk: 0, cards: 0 },
     settings: { goal: 30, accent: "en-US", rate: 0.9, autoplay: true, pron: true, sfx: true, speech: true, free: false, theme: "auto" }
   };
@@ -104,6 +104,7 @@
     if (before < state.settings.goal && state.daily[t] >= state.settings.goal) toast("Meta diária cumprida. Ofensiva de " + plural(state.streak, "dia", "dias") + ".");
     if (levelOf(state.xp) > lvBefore) toast("Novo nível: " + levelOf(state.xp) + ", " + titleOf(levelOf(state.xp)) + ".");
     checkBadges();
+    checkQuests();
     renderShell();
   }
 
@@ -192,20 +193,72 @@
     if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t);
   }
 
-  const ROUTE_TITLES = { learn: "Início", unit: "Unidade", practice: "Praticar", cards: "Flashcards", cases: "Casos clínicos", case: "Caso clínico", dict: "Dicionário", mine: "Meu dicionário", profile: "Progresso", settings: "Ajustes", resources: "Recursos e fontes", import: "Início" };
+  /* ---------- Missões do dia ---------- */
+  function td() {
+    if (!state.today || state.today.d !== dayStr()) state.today = { d: dayStr(), lessons: 0, cards: 0, combo: 0, bonus: false };
+    return state.today;
+  }
+  function quests() {
+    const t = td(), g = state.settings.goal;
+    return [
+      { e: "⚡", t: "Ganhe " + g + " XP", v: todayXP(), n: g },
+      { e: "📘", t: "Conclua 2 lições", v: t.lessons, n: 2 },
+      { e: "🎯", t: "Acerte 10 seguidas", v: t.combo, n: 10 },
+      { e: "🃏", t: "Revise 10 flashcards", v: t.cards, n: 10 }
+    ];
+  }
+  function checkQuests() {
+    const t = td();
+    if (!t.bonus && quests().every((q) => q.v >= q.n)) { t.bonus = true; save(); toast("🎁 Missões do dia completas! +20 XP"); addXP(20); }
+  }
+  const pct = (v, n) => Math.min(100, n ? (v / n) * 100 : 0);
+  function goalCard() {
+    const g = state.settings.goal, x = todayXP();
+    return `<div class="rcard"><h3>Meta diária</h3><div class="goal-row"><span class="e">${x >= g ? "🏆" : "🎯"}</span><div style="flex:1">
+      <b>${Math.min(x, g)} de ${g} XP</b><div class="qbar green"><div style="width:${pct(x, g)}%"></div></div></div></div></div>`;
+  }
+  function questsCard() {
+    const t = td();
+    return `<div class="rcard"><div class="panel-head" style="margin-bottom:4px"><h3 style="margin:0">Missões do dia</h3>${t.bonus ? '<span class="pill pos">Completas</span>' : ""}</div>
+      ${quests().map((q) => `<div class="quest ${q.v >= q.n ? "ok" : ""}"><span class="e">${q.e}</span><div class="q"><b>${q.t}</b>
+        <div class="qbar"><div style="width:${pct(q.v, q.n)}%"></div><span>${Math.min(q.v, q.n)} / ${q.n}</span></div></div></div>`).join("")}
+      <p class="muted small" style="margin-top:8px">Complete as quatro e ganhe +20 XP de bônus.</p></div>`;
+  }
+  function reviewCard() {
+    const due = dueIds().length;
+    if (!due) return "";
+    return `<div class="rcard"><div class="goal-row"><span class="e">🔁</span><div style="flex:1"><b>${plural(due, "palavra para revisar", "palavras para revisar")}</b>
+      <div class="muted small">A repetição espaçada separou estas para hoje.</div></div></div><button class="btn blue sm" data-review style="margin-top:12px">Revisar agora</button></div>`;
+  }
+  function wordCard() {
+    const w = wordOfDay();
+    return `<div class="rcard"><div class="panel-head" style="margin-bottom:6px"><h3 style="margin:0">Palavra do dia</h3><span class="spacer"></span>${speakBtn(w.en)}${starBtn(w.id)}</div>
+      <p style="font-size:22px;font-weight:900;color:var(--heading)">${esc(w.en)}</p>${pronHtml(w)}<p style="margin-top:4px;font-weight:800">${esc(w.pt)}</p>
+      <p class="muted" style="margin-top:6px">${esc(w.def)}</p><p style="margin-top:6px;font-style:italic">${esc(w.ex)}</p></div>`;
+  }
+  function backupCard() {
+    if (!(state.xp >= 30 && (!state.lastBackup || Date.now() - state.lastBackup > 7 * 864e5))) return "";
+    return `<div class="rcard"><div class="goal-row"><span class="e">💾</span><div style="flex:1"><b>Salve uma cópia do progresso</b>
+      <div class="muted small">Ele fica só neste navegador.</div></div></div><button class="btn sm" data-backup style="margin-top:12px">Salvar progresso</button></div>`;
+  }
+  const NO_RAIL = ["dict", "mine", "profile", "settings", "resources", "cards", "unit", "case"];
   function renderShell(name) {
-    const lv = levelOf(state.xp), due = dueIds().length;
-    const initial = (state.name || "?").trim().charAt(0).toUpperCase() || "?";
-    $("#user-row").innerHTML = `<span class="avatar">${esc(initial)}</span><span><b>${esc(state.name || "Visitante")}</b><span>Nível ${lv} · ${titleOf(lv)}</span></span>`;
+    const lv = levelOf(state.xp), due = dueIds().length, st = currentStreak();
     $("#nav-due").textContent = due ? due : "";
     $("#nav-due").setAttribute("aria-label", due ? plural(due, "palavra para revisar", "palavras para revisar") : "");
-    if (name) $("#phone-title").textContent = ROUTE_TITLES[name] || "Início";
+    const stats = `<a class="stat fire" href="#/profile" title="Ofensiva"><span class="e">🔥</span>${st}</a>
+      <a class="stat xp" href="#/profile" title="XP total"><span class="e">⚡</span>${state.xp}</a>
+      <a class="stat lv" href="#/profile" title="Nível ${lv}, ${titleOf(lv)}"><span class="e">🎓</span>${lv}</a>`;
+    $("#mbar").innerHTML = stats + `<span class="spacer"></span><button class="stat" data-backup aria-label="Salvar progresso" title="Salvar progresso"><span class="e">💾</span></button>`;
+    if (name === undefined) name = renderShell.last; else renderShell.last = name;
+    $("#rail").innerHTML = NO_RAIL.includes(name) ? "" : `<div class="stats-row">${stats}</div>` + reviewCard() + goalCard() + questsCard() + wordCard() + backupCard() +
+      `<div class="rcard"><div class="goal-row"><span class="e">⭐</span><div style="flex:1"><b>Meu dicionário</b><div class="muted small">${plural(mineCount(), "palavra salva", "palavras salvas")}. Salve as difíceis com a estrela.</div></div></div><a class="btn sm" href="#/mine" style="margin-top:12px">Abrir</a></div>`;
   }
-  // Menu do celular: a barra lateral vira uma folha de tela cheia
-  $("#menu-btn").addEventListener("click", () => { $("#side").classList.add("open"); $("#menu-btn").setAttribute("aria-expanded", "true"); });
-  const closeMenu = () => { $("#side").classList.remove("open"); $("#menu-btn").setAttribute("aria-expanded", "false"); };
-  $("#side-close").addEventListener("click", closeMenu);
-  $("#side").addEventListener("click", (e) => { if (e.target.closest("a, [data-backup]")) closeMenu(); });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-review]")) startPractice("review");
+    if (e.target.closest("[data-quests]")) openModal(`<div class="row" style="margin-bottom:12px"><h2>Seu dia</h2><span class="spacer"></span><button class="icon-btn" data-close aria-label="Fechar">${I("x")}</button></div>
+      <div style="display:flex;flex-direction:column;gap:12px">${goalCard()}${questsCard()}</div>`);
+  });
 
   const starBtn = (id) => `<button class="icon-btn star ${isMine(id) ? "on" : ""}" data-star="${esc(id)}" title="Meu dicionário" aria-label="Salvar no meu dicionário" aria-pressed="${isMine(id)}">${I("star")}</button>`;
   const speakBtn = (text, label) => `<button class="icon-btn" data-speak="${esc(text)}" aria-label="${esc(label || "Ouvir pronúncia")}" title="Ouvir">${I("speaker")}</button>`;
@@ -336,7 +389,7 @@
     Object.assign(P, {
       title: opts.title || "", queue: opts.exercises.filter(Boolean), i: 0, firstTotal: 0, firstOk: 0, okCount: 0,
       missed: new Set(), rated: new Set(), answer: null, phase: "answer", mode: opts.mode || "lesson",
-      onFinish: opts.onFinish, xpBase: opts.xpBase == null ? 10 : opts.xpBase, timed: opts.timed || null, start: Date.now(), timer: null
+      onFinish: opts.onFinish, xpBase: opts.xpBase == null ? 10 : opts.xpBase, timed: opts.timed || null, start: Date.now(), timer: null, combo: 0
     });
     P.firstTotal = P.queue.filter((e) => !e.noFeedback).length;
     if (!P.queue.length) { toast("Nada para praticar aqui ainda."); return; }
@@ -541,6 +594,8 @@
     state.stats.answers++;
     if (res.ok) { state.stats.correct++; P.okCount++; if (first) P.firstOk++; } else if (!P.timed && !e.retry) P.queue.push(Object.assign({}, e, { retry: true }));
     if (e.type === "speak" && res.ok) state.stats.speakOk++;
+    if (res.ok) { P.combo++; td().combo = Math.max(td().combo, P.combo); } else P.combo = 0;
+    if (!P.timed) $("#pl-extra").innerHTML = P.combo >= 3 ? `<span class="combo">🔥 ${P.combo} seguidas</span>` : "";
 
     // Repetição espaçada e erros
     const ids = e.type === "match" ? e.words.map((w) => w.id) : (e.word ? [e.word.id] : []);
@@ -563,7 +618,7 @@
 
     const foot = $("#pl-foot"); foot.classList.add(res.ok ? "correct" : "wrong");
     const w = e.word;
-    let html = `<div class="fb-title">${res.ok ? I("check", "lg") + pick(PRAISE) : I("x", "lg") + "Resposta correta:"}</div>`;
+    let html = `<div class="fb-title">${res.ok ? I("check", "lg") + (P.combo >= 3 ? P.combo + " seguidas! " : "") + pick(PRAISE) : I("x", "lg") + "Resposta correta:"}</div>`;
     if (!res.ok && e.solution) html += `<div style="font-size:16px"><b>${esc(e.solution)}</b></div>`;
     if (res.note) html += `<div>${esc(res.note)}</div>`;
     if (w) html += `<div class="row" style="margin-top:6px">${speakBtn(w.en)}<span><b>${esc(w.en)}</b>, ${esc(w.pt)}</span>${starBtn(w.id)}<span>Salvar no meu dicionário</span></div>`;
@@ -606,19 +661,19 @@
     let xp = 0;
     if (result.passed) {
       xp = P.timed ? P.okCount : P.xpBase + (perfect ? 5 : 0);
-      if (P.mode === "lesson") { state.stats.lessons++; if (perfect) state.stats.perfect++; }
+      if (P.mode === "lesson") { state.stats.lessons++; td().lessons++; if (perfect) state.stats.perfect++; }
       save(); addXP(xp);
     }
     const missed = Array.from(P.missed).filter(getWord);
     const secs = Math.round((Date.now() - P.start) / 1000);
     $("#pl-fill").style.width = "100%"; $("#pl-extra").textContent = "";
-    $("#pl-body").innerHTML = `<div class="result">
-      <h1>${esc(result.title || (result.passed ? (perfect ? "Lição perfeita" : "Lição concluída") : "Quase lá"))}</h1>
+    $("#pl-body").innerHTML = `<div class="result"><svg class="doc" aria-hidden="true" style="${result.passed ? "" : "filter:grayscale(.6)"}"><use href="#doc"/></svg>
+      <h1>${esc(result.title || (result.passed ? (perfect ? "Lição perfeita!" : "Lição concluída!") : "Quase lá!"))}</h1>
       <p class="muted" style="margin-top:6px;font-size:15px">${esc(result.message || (result.passed ? "A repetição é o segredo: estas palavras voltam na revisão no dia certo." : "O desafio pede 70% de acertos na primeira tentativa. Revise as palavras abaixo e tente de novo."))}</p>
       <div class="result-stats">
-        <div><span>XP ganho</span><b>+${xp}</b></div>
-        <div><span>${P.timed ? "Acertos" : "Precisão"}</span><b>${P.timed ? P.okCount : Math.round(acc * 100) + "%"}</b></div>
-        <div><span>Tempo</span><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}</b></div>
+        <div class="r1"><span>Total de XP</span><b>⚡ +${xp}</b></div>
+        <div class="r2"><span>${P.timed ? "Acertos" : "Precisão"}</span><b>🎯 ${P.timed ? P.okCount : Math.round(acc * 100) + "%"}</b></div>
+        <div class="r3"><span>Tempo</span><b>⏱ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}</b></div>
       </div>
       ${missed.length ? `<div class="panel"><div class="panel-head"><h2>Palavras para reforçar</h2><span class="chip-count">${missed.length}</span>
         <button class="link" id="saveall">Salvar todas no meu dicionário</button></div><div class="rows">
@@ -698,25 +753,21 @@
     const [r, arg] = location.hash.replace(/^#\/?/, "").split("/");
     const name = ROUTES[r] ? r : "learn";
     const navName = { case: "cases", unit: "learn", import: "learn" }[name] || name;
-    $$(".nav a[data-route]").forEach((a) => {
+    $$("[data-route]").forEach((a) => {
       const on = a.dataset.route === navName;
       a.classList.toggle("active", on);
       if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
-    view.className = name === "learn" || name === "import" ? "home" : "";
+    view.className = NO_RAIL.includes(name) ? "wide" : "";
+    $$(".node-pop").forEach((p) => p.remove());
     ROUTES[name](arg ? decodeURIComponent(arg) : undefined);
     renderShell(name);
   }
-  window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+  window.addEventListener("hashchange", () => { window.scrollTo(0, 0); route(); });
 
   const titleRow = (h1, sub, actions) => `<div class="title-row"><div><h1>${h1}</h1>${sub ? `<p class="sub">${sub}</p>` : ""}</div>${actions ? `<div class="actions">${actions}</div>` : ""}</div>`;
   const backLink = (href, label) => `<a class="link muted" href="${href}" style="margin-bottom:12px">${I("back")}${esc(label)}</a>`;
-  const trackHtml = (uid, big) => {
-    const nx = nextStepOf(uid);
-    return `<div class="track ${big ? "big" : ""}" aria-hidden="true">${STEPS.map((_, i) => `<i class="${stepDone(uid, i) ? "on" : i === nx ? "next" : ""}"></i>`).join("")}</div>`;
-  };
-
-  /* ---------- Início ---------- */
+  /* ---------- Aprender: a trilha ---------- */
   function wordOfDay() {
     const d = dayStr().split("-").map(Number); const n = d[0] * 372 + d[1] * 31 + d[2];
     return ALL_WORDS[n % ALL_WORDS.length];
@@ -728,104 +779,77 @@
     }
     return null;
   }
-  function greetingText() {
-    const h = new Date().getHours();
-    const g = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
-    return g + (state.name ? ", " + state.name : "") + ".";
-  }
-  function unitRow(u, idx, nx) {
-    const unlocked = unitUnlocked(idx), done = unitComplete(u.id), n = unitDone(u.id).length;
-    const status = done ? '<span class="pill pos">Concluída</span>' : nx && nx.uid === u.id ? '<span class="pill acc">Agora</span>' : !unlocked ? `<span class="muted" title="Bloqueada">${I("lock")}</span>` : "";
-    return `<a class="rowcard ${unlocked ? "" : "locked"}" href="#/unit/${u.id}" aria-label="${esc(u.title)}, ${n} de 5 etapas${unlocked ? "" : ", bloqueada"}">
-      <span class="main-col"><span class="t">${esc(u.title)}</span><span class="st">${esc(u.en)}</span></span>
-      ${trackHtml(u.id)}<span class="fig hide-sm">${n}/5</span><span class="status" style="width:72px;display:flex;align-items:center;justify-content:flex-end">${status}</span>${I("chev")}</a>`;
-  }
+  const OFFS = [0, 48, 76, 48, 0];
+  const STEP_XP = (i) => (i === 4 ? 20 : 10);
   ROUTES.learn = function () {
-    const nx = nextStep(), due = dueIds(), wod = wordOfDay(), g = state.settings.goal, x = todayXP(), left = Math.max(0, g - x);
-    const streak = currentStreak(), learned = learnedIds().length;
-    const dateTxt = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-    const finding = state.onboarded
-      ? "Hoje, " + dateTxt + ": " + (due.length ? plural(due.length, "palavra para revisar", "palavras para revisar") : "nenhuma revisão pendente") + " e " + (left ? "faltam " + left + " XP para a meta de " + g + " XP." : "meta de " + g + " XP cumprida.")
-      : "Lições curtas, flashcards, casos clínicos e o seu próprio dicionário de inglês médico.";
-    const needBackup = state.xp >= 30 && (!state.lastBackup || Date.now() - state.lastBackup > 7 * 864e5);
-    const recent = state.recent.filter(getWord).slice(0, 4);
-    const dueShow = due.slice(0, 4).map(getWord);
-    let html = `<div class="home-head"><h1 class="greeting">${state.onboarded ? esc(greetingText()) : "Boas-vindas ao Inglês Médico."}</h1>
-      <p class="greeting-sub">${esc(finding)}${needBackup ? ` Seu progresso fica só neste navegador: <button class="link" data-backup>salvar uma cópia</button>.` : ""}</p></div>
-      <div class="grid12">
-        <div class="tile s3"><span class="label">Meta de hoje</span><span class="value">${x}<small>/ ${g} XP</small></span><span class="cap">${left ? "Faltam " + left + " XP" : "Meta cumprida"}</span></div>
-        <div class="tile s3"><span class="label">Ofensiva</span><span class="value">${streak}<small>${streak === 1 ? "dia" : "dias"}</small></span><span class="cap">Recorde: ${plural(state.bestStreak, "dia", "dias")}</span></div>
-        <div class="tile s3"><span class="label">Para revisar hoje</span><span class="value">${due.length}<small>${due.length === 1 ? "palavra" : "palavras"}</small></span><span class="cap">${due.length ? "Na fila da repetição espaçada" : "Nada pendente"}</span></div>
-        <div class="tile s3"><span class="label">Palavras praticadas</span><span class="value">${learned}<small>de ${ALL_WORDS.length}</small></span><span class="cap">${plural(mineCount(), "salva", "salvas")} no meu dicionário</span></div>`;
-    // Bloco principal: próxima lição (ou o primeiro acesso)
+    const nx = nextStep();
+    let html = "";
     if (!state.onboarded) {
-      html += `<div class="panel s9"><div class="panel-head"><h2>Antes de começar</h2></div><form id="ob" class="inner">
-        <div class="grid12" style="gap:16px"><div class="field s4"><label for="ob-name">Como quer ser chamado(a)</label><input type="text" id="ob-name" placeholder="Ex.: Dra. Ana"></div>
-        <div class="field s4"><label for="ob-goal">Meta diária</label><select id="ob-goal"><option value="10">10 XP, cerca de 5 min</option><option value="20">20 XP, cerca de 10 min</option><option value="30" selected>30 XP, cerca de 15 min</option><option value="50">50 XP, cerca de 25 min</option></select></div>
-        <div class="field s4"><label for="ob-level">Seu inglês hoje</label><select id="ob-level"><option value="0">Começar do zero</option><option value="1">Já tenho base: liberar tudo</option></select></div></div>
-        <div class="row"><button class="btn primary" type="submit">Começar a Lição 1</button><span class="muted">Primeira unidade: ${esc(UNITS[0].title)}</span></div></form></div>`;
-    } else if (nx) {
-      const u = UNIT[nx.uid], sec = SECTION[u.section];
-      html += `<div class="panel s9"><div class="panel-head"><h2>Continue de onde parou</h2><a class="link" href="#/unit/${u.id}">Ver unidade ${I("chev")}</a></div>
-        <div class="inner"><p class="muted">${esc(sec.title)} · ${sec.level} · unidade ${unitIndex(u.id) + 1} de ${UNITS.length}</p>
-        <h2 style="font-size:24px;line-height:32px;margin-top:4px">${esc(u.title)}</h2><p class="muted">${esc(u.en)}</p>
-        <div style="margin:20px 0 4px">${trackHtml(u.id, true)}<div class="track-labels">${STEPS.map((s, i) => `<span class="${i === nx.step ? "cur" : ""}">${s.short}</span>`).join("")}</div></div>
-        <div class="row wrap" style="margin-top:20px"><button class="btn primary" id="go-next">Começar ${STEPS[nx.step].name}</button>
-        ${due.length ? `<button class="btn grey" id="go-review">Revisar ${plural(due.length, "palavra", "palavras")}</button>` : ""}
-        <span class="muted">${STEPS[nx.step].desc}</span></div></div></div>`;
-    } else {
-      html += `<div class="panel s9"><div class="panel-head"><h2>Trilha concluída</h2></div><div class="inner"><h2 style="font-size:24px;line-height:32px">Você completou as ${UNITS.length} unidades.</h2>
-        <p class="muted" style="margin-top:4px">Mantenha o vocabulário vivo com a revisão diária e os casos clínicos.</p>
-        <div class="row" style="margin-top:20px"><button class="btn primary" id="go-review" ${due.length ? "" : "disabled"}>Revisar ${plural(due.length, "palavra", "palavras")}</button><a class="btn" href="#/cases">Abrir casos clínicos</a></div></div></div>`;
+      html += `<div class="welcome"><svg aria-hidden="true"><use href="#doc"/></svg><div class="speech">
+        <h2>Olá! Eu sou o Doc. 👋</h2><p style="margin:6px 0 14px">Vou te acompanhar no inglês médico com lições curtas, flashcards e casos clínicos. Antes de começar:</p>
+        <form id="ob"><div class="field"><label for="ob-name">Como quer ser chamado(a)?</label><input type="text" id="ob-name" placeholder="Ex.: Dra. Ana"></div>
+        <div class="field"><label for="ob-goal">Meta diária</label><select id="ob-goal"><option value="10">10 XP · leve, 5 min</option><option value="20">20 XP · normal, 10 min</option><option value="30" selected>30 XP · sério, 15 min</option><option value="50">50 XP · intenso, 25 min</option></select></div>
+        <div class="field"><label for="ob-level">Seu inglês hoje</label><select id="ob-level"><option value="0">Iniciante, quero começar do zero</option><option value="1">Já tenho base, liberar todas as unidades</option></select></div>
+        <button class="btn primary" type="submit" style="width:100%">Começar a primeira lição</button></form></div></div>`;
     }
-    html += `<div class="panel s3"><div class="panel-head"><h2>Palavra do dia</h2><span class="spacer"></span>${speakBtn(wod.en)}${starBtn(wod.id)}</div>
-        <p style="font-size:24px;line-height:32px;font-weight:600">${esc(wod.en)}</p>${pronHtml(wod)}<p style="margin-top:8px;font-weight:500">${esc(wod.pt)}</p>
-        <p class="muted" style="margin-top:8px">${esc(wod.def)}</p><p style="margin-top:8px;font-style:italic">${esc(wod.ex)}</p></div>`;
-    // Revisão e erros
-    html += `<div class="panel s6"><div class="panel-head"><h2>Revisão de hoje</h2><span class="chip-count">${due.length}</span><a class="link" href="#/cards/due">Flashcards ${I("chev")}</a></div>
-        <div class="rows">${dueShow.length ? dueShow.map((w) => `<div class="rowcard">${speakBtn(w.en)}<span class="main-col"><span class="t">${esc(w.en)}</span><span class="st">${esc(w.pt)}</span></span><span class="fig">${esc(UNIT[w.unit] ? UNIT[w.unit].title : "Minha palavra")}</span></div>`).join("")
-          : `<div class="empty-line">Nada para revisar hoje. As palavras das lições voltam aqui no dia certo.</div>`}</div>
-        <div class="panel-foot">${due.length ? `<button class="btn sm" id="go-review2">Revisar ${plural(due.length, "palavra", "palavras")}</button>` : `<span class="muted">Próxima revisão: ${nextDueText()}</span>`}</div></div>
-      <div class="panel s6"><div class="panel-head"><h2>Erros recentes</h2><span class="chip-count">${Object.keys(state.mistakes).length}</span><a class="link" href="#/mine">Meu dicionário ${I("chev")}</a></div>
-        <div class="rows">${recent.length ? recent.map((id) => { const w = getWord(id); return `<div class="rowcard">${speakBtn(w.en)}<span class="main-col"><span class="t">${esc(w.en)}</span><span class="st">${esc(w.pt)}</span></span><span class="fig">${plural(state.mistakes[id] || 0, "erro", "erros")}</span>${starBtn(id)}</div>`; }).join("")
-          : `<div class="empty-line">Nenhum erro registrado. As palavras que você errar aparecem aqui para salvar.</div>`}</div>
-        <div class="panel-foot">${recent.length ? `<button class="btn sm" id="go-mistakes">Treinar meus erros</button>` : `<span class="muted">Erros viram treino na aba Praticar.</span>`}</div></div>
-      </div>`;
-    // A trilha
-    const doneSteps = stepsDoneTotal();
-    html += `<div class="section-gap section-title"><h2 style="font-size:20px;line-height:28px">Sua trilha</h2><p class="num">${doneSteps} de ${UNITS.length * STEPS.length} etapas concluídas · ${UNITS.length} unidades em ${SECTIONS.length} níveis</p></div><div class="grid12">`;
-    SECTIONS.forEach((sec) => {
-      html += `<div class="panel s6"><div class="panel-head"><h3>${esc(sec.title)}</h3><span class="chip-count">${sec.level}</span></div><p class="muted" style="margin:-8px 0 14px">${esc(sec.desc)}</p><div class="rows">`;
-      UNITS.forEach((u, idx) => { if (u.section === sec.id) html += unitRow(u, idx, nx); });
-      html += `</div></div>`;
+    const g = state.settings.goal, x = todayXP(), qd = quests().filter((q) => q.v >= q.n).length;
+    html += `<div class="mobile-day"><div class="rcard"><div class="goal-row"><span class="e">${x >= g ? "🏆" : "🎯"}</span><div style="flex:1"><b>${Math.min(x, g)} de ${g} XP hoje</b>
+      <div class="qbar green"><div style="width:${pct(x, g)}%"></div></div></div><button class="btn sm" data-quests>Missões ${qd}/4</button></div>
+      ${dueIds().length ? `<button class="btn blue sm" data-review style="margin-top:12px">🔁 Revisar ${plural(dueIds().length, "palavra", "palavras")}</button>` : ""}</div></div>`;
+    SECTIONS.forEach((sec, si) => {
+      html += `<div class="sec-head"><h2>Seção ${si + 1}: ${esc(sec.title)}</h2><p>${sec.level} · ${esc(sec.desc)}</p></div>`;
+      UNITS.forEach((u, idx) => {
+        if (u.section !== sec.id) return;
+        const unl = unitUnlocked(idx), sign = idx % 2 ? -1 : 1;
+        html += `<div class="unit-banner c-${sec.id} ${unl ? "" : "locked"}"><span class="emo" aria-hidden="true">${u.icon}</span>
+          <div class="ub-text"><small>Seção ${si + 1}, unidade ${idx + 1}</small><b>${esc(u.title)}</b><span>${esc(u.en)}</span></div>
+          <a class="btn white sm" href="#/unit/${u.id}">📖 Guia</a></div><div class="path c-${sec.id}">`;
+        STEPS.forEach((s, i) => {
+          const done = stepDone(u.id, i), avail = unl && stepUnlocked(u.id, i), cur = nx && nx.uid === u.id && nx.step === i;
+          const icon = i === 3 ? "bookf" : i === 4 ? "trophy" : done ? "done" : "lesson";
+          const cls = !avail ? "locked" : i === 4 && done ? "gold" : done ? "done" : "";
+          html += `<div class="node-wrap ${cur ? "cur" : ""}" style="transform:translateX(${OFFS[i] * sign}px)">${cur ? '<span class="start-bubble">Começar</span>' : ""}
+            <button class="node ${cls} ${cur ? "current" : ""}" data-u="${u.id}" data-s="${i}" aria-label="${esc(u.title)}: ${s.name}, ${done ? "concluída" : avail ? "disponível" : "bloqueada"}">${I(icon)}</button></div>`;
+        });
+        html += `<svg class="mascot ${unl ? "" : "gray"}" style="${sign > 0 ? "left:calc(50% - 170px)" : "left:calc(50% + 60px)"};top:150px" aria-hidden="true"><use href="#doc"/></svg></div>`;
+      });
     });
-    html += `</div>${state.settings.free || !state.onboarded ? "" : `<p class="muted" style="margin-top:16px">Já tem base em inglês? Libere todas as unidades em <a class="link" href="#/settings">Ajustes</a>.</p>`}`;
+    html += state.settings.free || !state.onboarded ? "" : `<p class="path-note">Já tem base em inglês? Libere todas as unidades em <a href="#/settings">Ajustes</a>.</p>`;
     view.innerHTML = html;
-    const on = (id, fn) => { const el = $("#" + id); if (el) el.addEventListener("click", fn); };
-    if (nx) on("go-next", () => startStep(nx.uid, nx.step));
-    on("go-review", () => startPractice("review")); on("go-review2", () => startPractice("review")); on("go-mistakes", () => startPractice("mistakes"));
     const ob = $("#ob");
     if (ob) ob.addEventListener("submit", (e) => {
       e.preventDefault();
       state.name = $("#ob-name").value.trim(); state.settings.goal = Number($("#ob-goal").value);
       state.settings.free = $("#ob-level").value === "1"; state.onboarded = true; save(); route(); startStep(UNITS[0].id, 0);
     });
+    $$(".node").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); nodePop(b); }));
+    const cur = $(".node.current"); if (cur && state.onboarded && !location.hash.includes("noscroll")) cur.scrollIntoView({ block: "center", behavior: "instant" });
   };
-  function nextDueText() {
-    const dates = learnedIds().map((id) => state.srs[id].due).filter((d) => d > dayStr()).sort();
-    if (!dates.length) return "conclua uma lição para começar";
-    const d = dates[0], n = dates.filter((x) => x === d).length;
-    const [y, m, dd] = d.split("-").map(Number);
-    const label = d === dayStr(1) ? "amanhã" : new Date(y, m - 1, dd).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "short" });
-    return label + ", " + plural(n, "palavra", "palavras");
+  // Balão de cada nó da trilha, como no Duolingo
+  function nodePop(b) {
+    const open = b.parentElement.querySelector(".node-pop");
+    $$(".node-pop").forEach((p) => { p.parentElement.classList.remove("open"); p.remove(); });
+    if (open) return;
+    b.parentElement.classList.add("open");
+    const uid = b.dataset.u, i = Number(b.dataset.s), u = UNIT[uid], s = STEPS[i];
+    const unl = unitUnlocked(unitIndex(uid)), avail = unl && stepUnlocked(uid, i), done = stepDone(uid, i);
+    const pop = document.createElement("div");
+    pop.className = "node-pop" + (avail ? "" : " locked");
+    pop.innerHTML = avail
+      ? `<b>${s.name}</b><p>${esc(s.desc)}<br>Etapa ${i + 1} de 5 · ${esc(u.title)}</p><button class="btn" data-go>${done ? "Praticar de novo" : "Começar"} +${STEP_XP(i)} XP</button>`
+      : `<b>${s.name}</b><p>${unl ? "Conclua as etapas anteriores para desbloquear." : "Conclua as três lições da unidade anterior para desbloquear."}</p>`;
+    b.parentElement.appendChild(pop);
+    const r = pop.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    if (r.right > vw - 8) pop.style.marginLeft = (vw - 8 - r.right) + "px"; else if (r.left < 8) pop.style.marginLeft = (8 - r.left) + "px";
+    const go = pop.querySelector("[data-go]"); if (go) go.addEventListener("click", () => startStep(uid, i));
   }
-
+  document.addEventListener("click", (e) => { if (!e.target.closest(".node-pop")) $$(".node-pop").forEach((p) => { p.parentElement.classList.remove("open"); p.remove(); }); });
   /* ---------- Unidade ---------- */
   ROUTES.unit = function (uid) {
     const u = UNIT[uid]; if (!u) { location.hash = "#/learn"; return; }
     const idx = unitIndex(uid), sec = SECTION[u.section], unlocked = unitUnlocked(idx), nx = nextStepOf(uid);
     const words = u.words.slice(0, 9);
-    view.innerHTML = backLink("#/learn", "Início") + titleRow(esc(u.title),
+    view.innerHTML = backLink("#/learn", "Aprender") + titleRow(u.icon + " " + esc(u.title),
       `${esc(u.en)} · ${esc(sec.title)}, ${sec.level}${u.source ? " · " + esc(u.source) : ""}`,
       `${unlocked && nx >= 0 ? `<button class="btn primary" data-step="${nx}">Começar ${STEPS[nx].name}</button>` : ""}<button class="btn" id="u-prac">Praticar</button><a class="btn" href="#/cards/${uid}">Flashcards</a>`) +
       `${unlocked ? "" : `<p class="empty-line" style="margin-bottom:16px">Esta unidade abre quando você concluir as três lições de “${esc(UNITS[idx - 1].title)}”, ou ao ativar o modo livre em Ajustes.</p>`}
@@ -833,7 +857,7 @@
         ${STEPS.map((s, i) => {
           const done = stepDone(uid, i), unl = unlocked && stepUnlocked(uid, i);
           const st = done ? '<span class="pill pos">Concluída</span>' : i === nx && unl ? '<span class="pill acc">Agora</span>' : !unl ? `<span class="muted">${I("lock")}</span>` : "";
-          return `<button class="rowcard ${unl ? "" : "locked"}" data-step="${i}" ${unl ? "" : 'aria-disabled="true"'}><span class="main-col"><span class="t">${s.name}</span><span class="st">${s.desc}</span></span>${st}${I("chev")}</button>`;
+          return `<button class="rowcard ${unl ? "" : "locked"}" data-step="${i}" ${unl ? "" : 'aria-disabled="true"'}><span class="emo" aria-hidden="true">${["⭐", "⭐", "🧩", "📖", "🏆"][i]}</span><span class="main-col"><span class="t">${s.name}</span><span class="st">${s.desc}</span></span>${st}${I("chev")}</button>`;
         }).join("")}</div></div>
       <div class="panel s4"><div class="panel-head"><h2>Vocabulário</h2><span class="chip-count">${u.words.length}</span></div><div class="kv">
         ${words.map((w) => `<div><span>${esc(w.en)}</span><span class="muted" style="text-align:right">${esc(w.pt)}</span></div>`).join("")}</div>
@@ -851,15 +875,16 @@
   /* ---------- Praticar ---------- */
   ROUTES.practice = function () {
     const due = dueIds().length, mist = Object.keys(state.mistakes).filter(getWord).length, mine = mineCount(), learned = learnedIds().length;
-    const rowsHtml = (items) => items.map(([k, t, st, fig, disabled]) => `<button class="rowcard ${disabled ? "locked" : ""}" data-p="${k}"><span class="main-col"><span class="t">${t}</span><span class="st">${st}</span></span><span class="fig">${fig}</span>${I("chev")}</button>`).join("");
+    const EMO = { review: "🔁", mistakes: "🩹", mine: "⭐", mixed: "🎲", timed: "⏱️", dictation: "🎧", speak: "🎤", terms: "🔤" };
+    const rowsHtml = (items) => items.map(([k, t, st, fig, disabled]) => `<button class="rowcard ${disabled ? "locked" : ""}" data-p="${k}"><span class="emo" aria-hidden="true">${EMO[k]}</span><span class="main-col"><span class="t">${t}</span><span class="st">${st}</span></span><span class="fig">${fig}</span>${I("chev")}</button>`).join("");
     view.innerHTML = titleRow("Praticar", due ? plural(due, "palavra espera", "palavras esperam") + " revisão hoje. Cada treino dá XP e atualiza a repetição espaçada." : "Nenhuma revisão pendente hoje. Escolha um treino para manter o ritmo.") +
-      `<div class="grid12"><div class="panel s6"><div class="panel-head"><h2>Revisar</h2></div><div class="rows">${rowsHtml([
+      `<div class="grid12"><div class="panel s12"><div class="panel-head"><h2>Revisar</h2></div><div class="rows">${rowsHtml([
         ["review", "Revisão inteligente", "As palavras que vencem hoje na repetição espaçada", plural(due, "palavra", "palavras"), !due],
         ["mistakes", "Meus erros", "As palavras que você mais errou", plural(mist, "palavra", "palavras"), !mist],
         ["mine", "Meu dicionário", "Quiz com as palavras que você salvou", plural(mine, "palavra", "palavras"), !mine],
         ["mixed", "Treino misto", "Exercícios variados com o que você já viu", plural(learned, "praticada", "praticadas"), false]
       ])}</div></div>
-      <div class="panel s6"><div class="panel-head"><h2>Treinos</h2></div><div class="rows">${rowsHtml([
+      <div class="panel s12"><div class="panel-head"><h2>Treinos</h2></div><div class="rows">${rowsHtml([
         ["timed", "Contra o relógio", "Quantas respostas certas em 60 segundos", "Recorde " + state.stats.timedBest, false],
         ["dictation", "Ditado", "Ouça o termo e escreva em inglês", "10 termos", false],
         ["speak", "Pronúncia", SR ? "Fale a palavra; o app confere pelo microfone" : "Requer o Chrome ou o Edge", plural(state.stats.speakOk, "acerto", "acertos"), !SR],
@@ -935,7 +960,7 @@
     if (FC.dir === "en" && !FC.flipped && state.settings.autoplay) speak(w.en);
     $$("#fc-rate [data-q]").forEach((b) => b.addEventListener("click", () => {
       const q = Number(b.dataset.q); srsRate(w.id, q); if (q === 0) recordMistake(w.id);
-      state.stats.cards++; save(); addXP(1);
+      state.stats.cards++; td().cards++; save(); addXP(1);
       if (q === 0) FC.queue.push(w);
       FC.i++; FC.flipped = false; renderCard();
     }));
@@ -1070,10 +1095,10 @@
   ROUTES.cases = function () {
     const solved = CASES.filter((c) => state.cases[c.id]).length;
     view.innerHTML = titleRow("Casos clínicos", `${CASES.length} casos curtos em inglês simples para treinar leitura · ${plural(solved, "resolvido", "resolvidos")}`) +
-      `<div class="panel"><div class="rows">${CASES.map((c) => `<a class="rowcard" href="#/case/${c.id}">
+      `<div class="rows">${CASES.map((c) => `<a class="rowcard" href="#/case/${c.id}"><span class="emo" aria-hidden="true">${UNIT[c.topic] ? UNIT[c.topic].icon : "🩺"}</span>
         <span class="main-col"><span class="t">${esc(c.title)}</span><span class="st">${esc(c.text.split(". ")[0])}.</span></span>
         <span class="fig hide-sm">${UNIT[c.topic] ? esc(UNIT[c.topic].title) : ""}</span><span class="pill">${esc(c.level)}</span>
-        <span class="status" style="width:84px;display:flex;justify-content:flex-end">${state.cases[c.id] ? '<span class="pill pos">Resolvido</span>' : ""}</span>${I("chev")}</a>`).join("")}</div></div>`;
+        <span class="status" style="width:96px;display:flex;justify-content:flex-end">${state.cases[c.id] ? '<span class="pill pos">Resolvido</span>' : ""}</span>${I("chev")}</a>`).join("")}</div>`;
   };
   ROUTES.case = function (id) {
     const c = CASES.find((x) => x.id === id); if (!c) { location.hash = "#/cases"; return; }
@@ -1135,9 +1160,10 @@
     ["speak10", "Boa pronúncia", "10 pronúncias corretas", () => state.stats.speakOk, 10],
     ["cards100", "Maratona de cards", "Revise 100 flashcards", () => state.stats.cards, 100]
   ];
+  const BADGE_EMO = { first: "🎉", perfect: "💯", save1: "⭐", streak3: "🔥", streak7: "📅", streak30: "🏥", xp100: "⚡", xp500: "🌟", xp1500: "🚀", words50: "📘", words150: "📚", wordsall: "🧠", mine10: "🗂️", unit1: "👑", section1: "🦴", allunits: "🎓", case3: "🕵️", timed20: "⏱️", speak10: "🎤", cards100: "🃏" };
   function checkBadges() {
     BADGES.forEach(([id, name, , cur, target]) => {
-      if (!state.badges[id] && cur() >= target) { state.badges[id] = Date.now(); save(); setTimeout(() => toast("Conquista desbloqueada: " + name + "."), 900); }
+      if (!state.badges[id] && cur() >= target) { state.badges[id] = Date.now(); save(); setTimeout(() => toast(BADGE_EMO[id] + " Conquista desbloqueada: " + name), 900); }
     });
   }
 
@@ -1165,7 +1191,7 @@
       <div class="section-gap section-title"><h2 style="font-size:20px;line-height:28px">Conquistas</h2><p class="num">${got} de ${BADGES.length}</p></div>
       <div class="badge-grid">${BADGES.map(([id, name, desc, cur, target]) => {
         const at = state.badges[id];
-        return `<div class="rowcard ${at ? "" : "locked"}"><span class="main-col"><span class="t">${name}</span><span class="st">${desc}</span></span>
+        return `<div class="rowcard ${at ? "" : "locked"}"><span class="emo" aria-hidden="true">${BADGE_EMO[id]}</span><span class="main-col"><span class="t">${name}</span><span class="st">${desc}</span></span>
           ${at ? `<span class="pill pos">${new Date(at).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</span>` : `<span class="fig">${Math.min(cur(), target).toLocaleString("pt-BR")} de ${target.toLocaleString("pt-BR")}</span>`}</div>`;
       }).join("")}</div>`;
     const values = days.map((d) => state.daily[d] || 0);

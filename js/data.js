@@ -15,7 +15,7 @@ const SECTIONS = [
 const UNITS = [
   /* ---------------- SEÇÃO 1 ---------------- */
   {
-    id: "hospital", section: "s1", title: "Hospital e equipe", en: "The hospital and the team",
+    id: "hospital", section: "s1", icon: "🏥", title: "Hospital e equipe", en: "The hospital and the team",
     words: [
       W("Hospital", "Hospital", "Rós-pi-ral", "A place where sick or injured people receive medical care.", "The patient was taken to the hospital by ambulance."),
       W("Ward", "Enfermaria", "Uórd", "A room or area in a hospital with beds for patients.", "She is in the cardiology ward on the third floor."),
@@ -46,7 +46,7 @@ const UNITS = [
     }
   },
   {
-    id: "body", section: "s1", title: "O corpo humano", en: "The human body",
+    id: "body", section: "s1", icon: "🧍", title: "O corpo humano", en: "The human body",
     words: [
       W("Head", "Cabeça", "Réd", "The top part of the body, with the brain, eyes, ears, nose and mouth.", "She hit her head on the door."),
       W("Neck", "Pescoço", "Nék", "The part of the body between the head and the shoulders.", "He has a stiff neck."),
@@ -77,7 +77,7 @@ const UNITS = [
     }
   },
   {
-    id: "head", section: "s1", title: "Cabeça: crânio e face", en: "Head: skull and face", source: "Material base: The Human Body – Head",
+    id: "head", section: "s1", icon: "💀", title: "Cabeça: crânio e face", en: "Head: skull and face", source: "Material base: The Human Body – Head",
     words: [
       W("Skull", "Crânio", "SkóLL", "All the bones of the head, including the cranium and the face.", "The skull protects the brain."),
       W("Face", "Face / rosto", "Fêiss", "The front of the head, with the eyes, nose and mouth.", "The facial skeleton supports the soft tissues of the face."),
@@ -108,7 +108,7 @@ const UNITS = [
     }
   },
   {
-    id: "axial", section: "s1", title: "Esqueleto axial", en: "Axial skeleton", source: "Material base: Axial Skeleton",
+    id: "axial", section: "s1", icon: "🦴", title: "Esqueleto axial", en: "Axial skeleton", source: "Material base: Axial Skeleton",
     words: [
       W("Axial skeleton", "Esqueleto axial", "Ák-si-al Ské-le-ton", "The central axis of the body: skull, vertebral column and thoracic cage (80 bones).", "The axial skeleton is composed of 80 bones."),
       W("Appendicular skeleton", "Esqueleto apendicular", "A-pen-dí-kiu-lar Ské-le-ton", "The bones of the limbs and the girdles that attach them.", "The arms and legs belong to the appendicular skeleton."),
@@ -139,7 +139,7 @@ const UNITS = [
     }
   },
   {
-    id: "facial", section: "s1", title: "Músculos da face", en: "Facial muscles", source: "Material base: Facial Muscles",
+    id: "facial", section: "s1", icon: "😊", title: "Músculos da face", en: "Facial muscles", source: "Material base: Facial Muscles",
     words: [
       W("Facial nerve", "Nervo facial", "Fêi-shal Nãrv", "Cranial nerve VII; it supplies all the muscles of facial expression.", "All the muscles of facial expression are innervated by the facial nerve."),
       W("Frontalis", "Músculo frontal", "Frôn-tá-lis", "The muscle of the forehead that raises the eyebrows.", "The frontalis raises the eyebrows."),
@@ -172,7 +172,7 @@ const UNITS = [
 
   /* ---------------- SEÇÃO 2 ---------------- */
   {
-    id: "symptoms", section: "s2", title: "Sinais e sintomas", en: "Signs and symptoms",
+    id: "symptoms", section: "s2", icon: "🤒", title: "Sinais e sintomas", en: "Signs and symptoms",
     words: [
       W("Pain", "Dor", "Pêin", "An unpleasant feeling caused by illness or injury.", "Where is the pain?"),
       W("Fever", "Febre", "Fí-vãr", "A body temperature higher than normal.", "The child has had a fever for two days."),
@@ -203,7 +203,7 @@ const UNITS = [
     }
   },
   {
-    id: "history", section: "s2", title: "Anamnese: perguntas", en: "Taking a history",
+    id: "history", section: "s2", icon: "🗣️", title: "Anamnese: perguntas", en: "Taking a history",
     words: [
       W("Chief complaint", "Queixa principal", "Tchíif Kom-plêint", "The main reason why the patient came to the doctor.", "What is the chief complaint?"),
       W("What brings you here today?", "O que te traz aqui hoje?", "Uót brings iú ríar tu-dêi", "A polite way to start the consultation.", "Good morning. What brings you here today?"),
@@ -234,7 +234,7 @@ const UNITS = [
     }
   },
   {
-    id: "exam", section: "s2", title: "Exame físico: comandos", en: "Physical examination",
+    id: "exam", section: "s2", icon: "🩺", title: "Exame físico: comandos", en: "Physical examination",
     words: [
       W("Take a deep breath", "Respire fundo", "Têik a díip Bréth", "An instruction to breathe in fully.", "Take a deep breath and hold it."),
       W("Breathe out", "Solte o ar / expire", "Bríid áut", "An instruction to let the air out of the lungs.", "Now breathe out slowly."),
@@ -265,7 +265,7 @@ const UNITS = [
     }
   },
   {
-    id: "terms", section: "s2", title: "Prefixos e sufixos", en: "Building medical words",
+    id: "terms", section: "s2", icon: "🔤", title: "Prefixos e sufixos", en: "Building medical words",
     words: [
       W("-itis", "-ite (inflamação)", "Ái-tis", "Suffix meaning inflammation. Example: appendicitis.", "Appendicitis is inflammation of the appendix: appendic + -itis."),
       W("-ectomy", "-ectomia (remoção cirúrgica)", "Ék-to-mi", "Suffix meaning surgical removal. Example: appendectomy.", "Removal of the gallbladder is a cholecyst-ectomy: -ectomy."),
@@ -296,7 +296,7 @@ const UNITS = [
     }
   },
   {
-    id: "radiography", section: "s2", title: "Radiografia e imagem", en: "Radiography and imaging", source: "Material base: Radiography",
+    id: "radiography", section: "s2", icon: "🩻", title: "Radiografia e imagem", en: "Radiography and imaging", source: "Material base: Radiography",
     words: [
       W("X-ray", "Raio X / radiografia", "Éks-rêi", "A quick, painless test that produces images of the inside of the body, especially bones.", "The X-ray shows a fracture of the wrist."),
       W("Radiograph", "Radiografia", "Rêi-di-ou-gréf", "A two-dimensional image made with X-rays.", "The radiograph is displayed in white, black and shades of gray."),
@@ -329,7 +329,7 @@ const UNITS = [
 
   /* ---------------- SEÇÃO 3 ---------------- */
   {
-    id: "cardio", section: "s3", title: "Sistema cardiovascular", en: "The cardiovascular system",
+    id: "cardio", section: "s3", icon: "❤️", title: "Sistema cardiovascular", en: "The cardiovascular system",
     words: [
       W("Heart", "Coração", "Rárt", "The organ that pumps blood around the body.", "The heart pumps blood through the body."),
       W("Artery", "Artéria", "Ár-te-ri", "A blood vessel that carries blood away from the heart.", "The coronary artery was blocked."),
@@ -360,7 +360,7 @@ const UNITS = [
     }
   },
   {
-    id: "resp", section: "s3", title: "Sistema respiratório", en: "The respiratory system",
+    id: "resp", section: "s3", icon: "🫁", title: "Sistema respiratório", en: "The respiratory system",
     words: [
       W("Lungs", "Pulmões", "Lãngs", "The two organs in the chest used for breathing.", "Both lungs are clear on auscultation."),
       W("Airway", "Via aérea", "Ér-uêi", "The passage through which air reaches the lungs.", "First, check that the airway is open."),
@@ -391,7 +391,7 @@ const UNITS = [
     }
   },
   {
-    id: "gi", section: "s3", title: "Sistema digestivo", en: "The digestive system",
+    id: "gi", section: "s3", icon: "🍽️", title: "Sistema digestivo", en: "The digestive system",
     words: [
       W("Stomach", "Estômago", "Stã-mak", "The organ where food goes after it is swallowed.", "The stomach produces acid to digest food."),
       W("Liver", "Fígado", "Lí-vãr", "A large organ that cleans the blood and produces bile.", "Alcohol can damage the liver."),
@@ -422,7 +422,7 @@ const UNITS = [
     }
   },
   {
-    id: "neuro", section: "s3", title: "Sistema nervoso", en: "The nervous system",
+    id: "neuro", section: "s3", icon: "🧠", title: "Sistema nervoso", en: "The nervous system",
     words: [
       W("Brain", "Cérebro / encéfalo", "Brêin", "The organ inside the head that controls thought and the body.", "The brain is protected by the skull."),
       W("Nerve", "Nervo", "Nãrv", "A fiber that carries messages between the brain and the body.", "The facial nerve controls the muscles of the face."),
@@ -453,7 +453,7 @@ const UNITS = [
     }
   },
   {
-    id: "renal", section: "s3", title: "Rins e trato urinário", en: "Kidneys and urinary tract",
+    id: "renal", section: "s3", icon: "🫘", title: "Rins e trato urinário", en: "Kidneys and urinary tract",
     words: [
       W("Kidney", "Rim", "Kíd-ni", "One of two organs that filter the blood and make urine.", "Each kidney filters the blood."),
       W("Bladder", "Bexiga", "Blé-dãr", "The organ that stores urine.", "The bladder can hold about 400 ml of urine."),
@@ -486,7 +486,7 @@ const UNITS = [
 
   /* ---------------- SEÇÃO 4 ---------------- */
   {
-    id: "pharm", section: "s4", title: "Medicamentos e prescrição", en: "Medication and prescriptions",
+    id: "pharm", section: "s4", icon: "💊", title: "Medicamentos e prescrição", en: "Medication and prescriptions",
     words: [
       W("Prescription", "Receita médica", "Pris-kríp-shãn", "A written order from a doctor for a medicine.", "You need a prescription for this antibiotic."),
       W("Dose", "Dose", "Dôus", "The amount of medicine taken at one time.", "The dose is 500 mg every eight hours."),
@@ -517,7 +517,7 @@ const UNITS = [
     }
   },
   {
-    id: "emergency", section: "s4", title: "Emergência e BLS", en: "Emergency and basic life support",
+    id: "emergency", section: "s4", icon: "🚑", title: "Emergência e BLS", en: "Emergency and basic life support",
     words: [
       W("Cardiac arrest", "Parada cardíaca", "Kár-di-ak a-rést", "When the heart suddenly stops pumping blood.", "He had a cardiac arrest in the waiting room."),
       W("CPR", "RCP (reanimação cardiopulmonar)", "Si-pi-ár", "Cardiopulmonary resuscitation: chest compressions and breaths.", "Start CPR immediately."),
@@ -548,7 +548,7 @@ const UNITS = [
     }
   },
   {
-    id: "lab", section: "s4", title: "Exames laboratoriais", en: "Laboratory tests",
+    id: "lab", section: "s4", icon: "🧪", title: "Exames laboratoriais", en: "Laboratory tests",
     words: [
       W("Blood test", "Exame de sangue", "Blád Tést", "A laboratory test done on a sample of blood.", "We need a blood test to check your kidneys."),
       W("Complete blood count", "Hemograma completo", "Kom-plíit Blád Káunt", "A test that counts red cells, white cells and platelets (CBC).", "The complete blood count shows anemia."),
@@ -579,7 +579,7 @@ const UNITS = [
     }
   },
   {
-    id: "abbrev", section: "s4", title: "Abreviações médicas", en: "Medical abbreviations",
+    id: "abbrev", section: "s4", icon: "📋", title: "Abreviações médicas", en: "Medical abbreviations",
     words: [
       W("BP", "Pressão arterial (PA)", "Bí-pí", "Blood pressure.", "BP is 130/85 mmHg."),
       W("HR", "Frequência cardíaca (FC)", "Êitch-ár", "Heart rate.", "HR is 110, he is tachycardic."),
@@ -610,7 +610,7 @@ const UNITS = [
     }
   },
   {
-    id: "falsefriends", section: "s4", title: "Falsos cognatos", en: "False friends",
+    id: "falsefriends", section: "s4", icon: "⚠️", title: "Falsos cognatos", en: "False friends",
     words: [
       W("Constipation", "Prisão de ventre (NÃO é resfriado)", "Kons-ti-pêi-shãn", "Difficulty passing stools. 'Resfriado' is 'a cold'.", "Constipation is a common side effect of opioids."),
       W("Cold", "Resfriado", "Kôuld", "A mild viral infection of the nose and throat.", "I caught a cold last week."),

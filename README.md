@@ -9,7 +9,7 @@ Plataforma gratuita, em HTML/CSS/JavaScript puro, para praticar **inglês médic
 
 ### Salvar e levar o progresso para outro navegador
 
-O progresso fica salvo no próprio navegador (`localStorage`). Clique no **💾** da barra superior (ou em **Perfil → Salvar e transferir progresso**) e escolha uma opção:
+O progresso fica salvo no próprio navegador (`localStorage`). Clique em **Salvar dados** no menu (ou no 💾 da barra do celular, ou em **Ajustes → Seus dados**) e escolha uma opção:
 
 - **Arquivo JSON:** baixe o arquivo `.json` e, no outro navegador, use **Carregar arquivo**. É a melhor opção para guardar backup (Drive, e-mail).
 - **Link de transferência:** copie o link e abra-o no outro navegador ou celular. Os dados vão compactados dentro do próprio link e nada é enviado para servidor.
@@ -51,13 +51,14 @@ js/app.js       # lógica: trilha, exercícios, SRS, dicionário, progresso, aju
 
 ### Design
 
-O visual segue o estilo *Editorial greeting* da skill [taste-skill](https://github.com/leonxlnx/taste-skill):
+O visual é no estilo Duolingo:
 
-- uma saudação em serifa que traz o dado do dia ("Bom dia, Ana. 5 palavras para revisar…");
-- painéis em tons planos, sem sombras, gradientes nem emoji;
-- Instrument Sans e Instrument Serif;
-- o verde-azulado como única cor de destaque, usada nos dados: a trilha de 5 etapas de cada unidade e o dia de hoje no gráfico;
-- tema claro e escuro.
+- **Trilha:** nós redondos em 3D num caminho em zigue-zague, cinco por unidade (três lições, a leitura e o desafio). Ao tocar num nó, abre um balão com a etapa e o botão de começar.
+- **Unidades:** cada uma tem uma faixa colorida com o botão "Guia", e as cores mudam por seção (verde, azul, roxo e laranja).
+- **Doc, o mascote:** acompanha a trilha, dá as boas-vindas e comemora o fim das lições.
+- **Coluna lateral:** mostra a ofensiva, a meta diária, as **missões do dia** (bônus de +20 XP ao completar as quatro), a palavra do dia e o meu dicionário. No celular, ela vira uma barra compacta no topo.
+- **Lições:** contador de acertos seguidos, botões 3D, fonte Nunito e retorno verde ou vermelho no rodapé.
+- **Temas:** claro e escuro.
 
 ### Adicionar conteúdo
 
