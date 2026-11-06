@@ -330,6 +330,7 @@
         return { type, word: w, solution: w.ex, tokens: shuffle(toks.map((t, i) => ({ t, i }))), label: "Monte a frase em inglês" };
       }
       case "speak":
+        if (!speakable(w)) return makeEx("listen", w, extra);
         return { type, word: w, solution: w.en, label: "Fale em voz alta", optional: true };
       case "match":
         return { type, words: extra.words.slice(0, 5), label: "Toque nos pares correspondentes", solution: "" };
@@ -359,7 +360,7 @@
       const plan = ["fill", "fill", "fill", "order", "order", "order", "type", "type", "listen", "listen", "def", "mc_pt"];
       plan.forEach((t, i) => ex.push(makeEx(t, all[i % all.length])));
       ex.splice(6, 0, makeEx("match", null, { words: shuffle(ws) }));
-      if (canSpeakEx()) ex.push(makeEx("speak", pick(ws)));
+      if (canSpeakEx() && ws.some(speakable)) ex.push(makeEx("speak", pick(ws.filter(speakable))));
       return ex;
     }
     if (step === 3) return readingEx(unit.reading);
@@ -368,7 +369,7 @@
     const plan = ["type", "type", "type", "type", "dictation", "dictation", "dictation", "fill", "fill", "fill", "order", "order", "def", "def", "mc_pt"];
     plan.forEach((t, i) => ex.push(makeEx(t, all[i % all.length])));
     const out = shuffle(ex);
-    if (canSpeakEx()) out.push(makeEx("speak", pick(ws)));
+    if (canSpeakEx() && ws.some(speakable)) out.push(makeEx("speak", pick(ws.filter(speakable))));
     return out;
   }
   function readingEx(reading) {
@@ -407,6 +408,7 @@
   }
 
   function closePlayer() {
+    stopMic();
     clearInterval(P.timer); P.timer = null;
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     $("#player").hidden = true; document.body.style.overflow = "";
@@ -421,7 +423,9 @@
     $("#pl-check").disabled = v == null || v === "";
   }
 
+  function stopMic() { if (P.cleanup) { P.cleanup(); P.cleanup = null; } }
   function renderEx() {
+    stopMic();
     const e = P.queue[P.i];
     const foot = $("#pl-foot"); foot.className = "player-foot"; $("#pl-fb").innerHTML = "";
     P.phase = "answer"; setAnswer(null);
@@ -451,6 +455,26 @@
   }
   const listenRow = (text) => `<div class="listen-row"><button class="big-speaker" data-speak="${esc(text)}" aria-label="Ouvir">${I("speaker")}</button>
     <button class="btn sm" data-speak="${esc(text)}" data-rate="0.55">Ouvir devagar</button></div>`;
+
+  // Só vira exercício de fala o que o reconhecimento de voz consegue escrever igual:
+  // nada de prefixos/sufixos (-itis), siglas (BP), números ou frases com pontuação.
+  const speakable = (w) => !!w && /^[A-Za-z][A-Za-z' ]*[A-Za-z]$/.test(w.en) && !/^[A-Z]{2,5}$/.test(w.en) && w.en.split(" ").length <= 4;
+  // Compara o que o navegador ouviu com o termo, com tolerância a pequenas diferenças de grafia
+  function speechMatches(target, alts) {
+    const t = norm(target), tc = t.replace(/ /g, "");
+    if (!tc) return false;
+    const tol = tc.length <= 5 ? 1 : tc.length <= 8 ? 2 : 3;
+    const close = (a, b) => a === b || (b.length > 3 && lev(a, b) <= (b.length > 5 ? 2 : 1));
+    return (alts || []).some((h) => {
+      const n = norm(h), nc = n.replace(/ /g, "");
+      if (!nc) return false;
+      if (nc === tc || nc.includes(tc)) return true;
+      if (lev(nc, tc) <= tol) return true;
+      const tw = t.split(" "), hw = n.split(" ");
+      if (tw.length > 1) return tw.filter((w) => hw.some((x) => close(x, w))).length / tw.length >= 0.75;
+      return hw.some((x) => x.length >= 3 && lev(x, tc) <= tol);
+    });
+  }
 
   const RENDER = {
     mc_en(e, body) {
@@ -529,21 +553,45 @@
       }));
     },
     speak(e, body) {
+      e.heard = null; e.tries = 0;
       body.innerHTML = `<div class="q-label">${e.label}</div><div class="q-prompt">${speakBtn(e.word.en)}<span>${esc(e.word.en)}</span></div>${pronHtml(e.word)}
         <div class="mic-wrap"><button class="mic-btn" id="mic" aria-label="Gravar sua voz">${I("mic")}</button>
-        <p class="muted" id="heard" style="margin-top:12px">Toque no microfone e diga a palavra.</p></div>`;
-      $("#mic").addEventListener("click", () => {
-        let rec; try { rec = new SR(); } catch (err) { toast("Reconhecimento de voz indisponível."); return; }
-        rec.lang = state.settings.accent; rec.maxAlternatives = 5; rec.interimResults = false;
-        $("#mic").classList.add("rec"); $("#heard").textContent = "Ouvindo…";
+        <p class="muted" id="heard" style="margin-top:12px" aria-live="polite">Toque no microfone e diga a palavra em inglês.</p></div>`;
+      const mic = $("#mic"), out = $("#heard");
+      let rec = null, gotFinal = false;
+      const isCurrent = () => P.queue[P.i] === e && P.phase === "answer";
+      const stop = () => { const r = rec; rec = null; if (r) { r.onresult = r.onerror = r.onend = null; try { r.abort(); } catch (err) { /* já parado */ } } mic.classList.remove("rec"); };
+      P.cleanup = stop;
+      mic.addEventListener("click", () => {
+        if (!isCurrent()) return;
+        if (rec) { stop(); out.textContent = "Gravação cancelada. Toque no microfone para tentar de novo."; return; }
+        if ("speechSynthesis" in window) speechSynthesis.cancel(); // o microfone não pode ouvir a voz do app
+        try { rec = new SR(); } catch (err) { toast("Reconhecimento de voz indisponível neste navegador."); return; }
+        rec.lang = state.settings.accent; rec.maxAlternatives = 5; rec.interimResults = true; rec.continuous = false;
+        gotFinal = false; mic.classList.add("rec"); out.textContent = "Ouvindo… fale agora.";
         rec.onresult = (ev) => {
-          const alts = Array.from(ev.results[0]).map((r) => r.transcript);
-          e.heard = alts; $("#heard").textContent = "Você disse: “" + alts[0] + "”";
-          setAnswer(alts[0]); doCheck();
+          if (!isCurrent()) { stop(); return; }
+          const alts = []; let interim = "";
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            const r = ev.results[i];
+            if (r.isFinal) { for (let k = 0; k < r.length; k++) if (r[k].transcript.trim()) alts.push(r[k].transcript.trim()); }
+            else interim += r[0].transcript;
+          }
+          // Resultado parcial: só mostra; a correção espera a frase final
+          if (!alts.length) { if (interim.trim()) out.textContent = "Ouvindo: “" + interim.trim() + "”"; return; }
+          gotFinal = true; stop(); e.tries++;
+          const ok = speechMatches(e.word.en, alts);
+          if (ok || e.tries >= 3) { e.heard = alts; out.textContent = "Você disse: “" + alts[0] + "”"; setAnswer(alts[0]); doCheck(); }
+          else out.textContent = "Entendi “" + alts[0] + "”. Ouça o modelo e tente de novo (" + e.tries + " de 3).";
         };
-        rec.onerror = () => { $("#heard").textContent = "Não consegui ouvir. Tente de novo e verifique a permissão do microfone."; };
-        rec.onend = () => $("#mic") && $("#mic").classList.remove("rec");
-        rec.start();
+        rec.onerror = (ev) => {
+          const msg = { "not-allowed": "Permita o uso do microfone para este site e tente de novo.", "service-not-allowed": "Permita o uso do microfone para este site e tente de novo.",
+            "no-speech": "Não ouvi nada. Toque no microfone e fale um pouco mais alto.", "audio-capture": "Nenhum microfone encontrado neste aparelho.",
+            "network": "O reconhecimento de voz precisa de internet. Verifique a conexão." }[ev.error];
+          if (ev.error !== "aborted") out.textContent = msg || "Não consegui ouvir. Toque no microfone e tente de novo.";
+        };
+        rec.onend = () => { rec = null; mic.classList.remove("rec"); if (!gotFinal && /^Ouvindo/.test(out.textContent)) out.textContent = "Não ouvi nada. Toque no microfone e tente de novo."; };
+        try { rec.start(); } catch (err) { stop(); out.textContent = "Não consegui ligar o microfone. Tente de novo."; }
       });
     },
     read(e, body) {
@@ -571,11 +619,7 @@
         return { ok: false };
       }
       case "order": return { ok: norm(ans) === norm(e.word.ex) };
-      case "speak": {
-        const target = norm(e.word.en);
-        const ok = (e.heard || [ans]).some((h) => { const n = norm(h); return n === target || n.includes(target) || (target.length > 3 && lev(n, target) <= Math.max(1, Math.floor(target.length * 0.25))); });
-        return { ok };
-      }
+      case "speak": return { ok: speechMatches(e.word.en, e.heard || [ans]) };
       case "match": return { ok: true };
       case "read": return { ok: true };
       default: return { ok: ans === e.correct };
@@ -619,7 +663,7 @@
     const foot = $("#pl-foot"); foot.classList.add(res.ok ? "correct" : "wrong");
     const w = e.word;
     let html = `<div class="fb-title">${res.ok ? I("check", "lg") + (P.combo >= 3 ? P.combo + " seguidas! " : "") + pick(PRAISE) : I("x", "lg") + "Resposta correta:"}</div>`;
-    if (!res.ok && e.solution) html += `<div style="font-size:16px"><b>${esc(e.solution)}</b></div>`;
+    if (!res.ok && e.solution) html += `<div style="font-size:16px"><b>${esc(e.solution)}</b>${e.type === "speak" && e.heard ? ` <span style="font-weight:600">(entendi “${esc(e.heard[0])}”)</span>` : ""}</div>`;
     if (res.note) html += `<div>${esc(res.note)}</div>`;
     if (w) html += `<div class="row" style="margin-top:6px">${speakBtn(w.en)}<span><b>${esc(w.en)}</b>, ${esc(w.pt)}</span>${starBtn(w.id)}<span>Salvar no meu dicionário</span></div>`;
     $("#pl-fb").innerHTML = html;
@@ -652,6 +696,7 @@
 
   function finishSession() {
     if (P.phase === "done") return;
+    stopMic();
     clearInterval(P.timer); P.timer = null; P.phase = "done";
     const total = Math.max(1, P.firstTotal);
     const acc = P.timed ? (P.okCount / Math.max(1, P.i)) : P.firstOk / total;
@@ -737,7 +782,7 @@
       case "dictation": words = learned.length >= 4 ? learned : fallback(); ex = mixedEx(words, 10, ["dictation"]); opts.title = "Ditado"; break;
       case "speak": {
         if (!SR) { toast("Seu navegador não tem reconhecimento de voz. Use o Chrome ou o Edge."); return; }
-        words = learned.length >= 4 ? learned : fallback(); ex = shuffle(words).slice(0, 8).map((w) => makeEx("speak", w)); opts.title = "Pronúncia"; break;
+        words = (learned.filter(speakable).length >= 4 ? learned : fallback()).filter(speakable); ex = shuffle(words).slice(0, 8).map((w) => makeEx("speak", w)); opts.title = "Pronúncia"; break;
       }
       case "terms": words = UNIT.terms.words.concat(UNIT.abbrev.words); ex = mixedEx(words, 12, ["mc_en", "mc_pt", "def", "type"]); opts.title = "Prefixos, sufixos e abreviações"; break;
     }
