@@ -665,6 +665,11 @@
     let html = `<div class="fb-title">${res.ok ? I("check", "lg") + (P.combo >= 3 ? P.combo + " seguidas! " : "") + pick(PRAISE) : I("x", "lg") + "Resposta correta:"}</div>`;
     if (!res.ok && e.solution) html += `<div style="font-size:16px"><b>${esc(e.solution)}</b>${e.type === "speak" && e.heard ? ` <span style="font-weight:600">(entendi “${esc(e.heard[0])}”)</span>` : ""}</div>`;
     if (res.note) html += `<div>${esc(res.note)}</div>`;
+    // Frases (montar e completar): mostra a frase e a tradução, acertando ou errando
+    if (w && (e.type === "order" || e.type === "fill") && w.ex) {
+      if (res.ok) html += `<div class="fb-sent">${speakBtn(w.ex, "Ouvir a frase")}<b>${esc(w.ex)}</b></div>`;
+      if (w.exPt) html += `<div class="fb-tr">Tradução: ${esc(w.exPt)}</div>`;
+    }
     if (w) html += `<div class="row" style="margin-top:6px">${speakBtn(w.en)}<span><b>${esc(w.en)}</b>, ${esc(w.pt)}</span>${starBtn(w.id)}<span>Salvar no meu dicionário</span></div>`;
     $("#pl-fb").innerHTML = html;
     if (res.ok && w && state.settings.autoplay && ["mc_pt", "def", "fill", "type", "order"].includes(e.type)) speak(e.type === "fill" || e.type === "order" ? w.ex : w.en);
@@ -989,7 +994,7 @@
     const w = FC.queue[FC.i], s = srs(w.id);
     const front = FC.dir === "en" ? `<div class="fc-term">${esc(w.en)}</div>${pronHtml(w)}` : `<div class="fc-term">${esc(w.pt)}</div>`;
     const back = `<div class="fc-term">${esc(FC.dir === "en" ? w.pt : w.en)}</div>${FC.dir === "pt" ? pronHtml(w) : ""}
-      <p class="muted" style="margin-top:12px;max-width:44ch">${esc(w.def || "")}</p><p style="margin-top:8px;font-style:italic;max-width:44ch">${esc(w.ex || "")}</p>`;
+      <p class="muted" style="margin-top:12px;max-width:44ch">${esc(w.def || "")}</p><p style="margin-top:8px;font-style:italic;max-width:44ch">${esc(w.ex || "")}</p>${w.exPt ? `<p class="muted" style="margin-top:4px;max-width:44ch">${esc(w.exPt)}</p>` : ""}`;
     area.innerHTML = `<div class="fc-stage"><div class="panel-head"><h2 class="num">Cartão ${FC.i + 1} de ${FC.queue.length}</h2><span class="spacer"></span>${speakBtn(w.en)}${starBtn(w.id)}</div>
       <div class="fc ${FC.flipped ? "flip" : ""}" id="fc" tabindex="0" role="button" aria-label="Virar cartão"><div class="fc-in">
         <div class="fc-face">${front}<span class="fc-hint">Toque ou aperte espaço para virar</span></div>
@@ -1021,7 +1026,7 @@
       <span><span class="term">${esc(w.en)}</span>${state.settings.pron && w.pr ? `<span class="pr">/${esc(w.pr)}/</span>` : ""}</span>
       <span class="c-pt">${esc(w.pt)}</span><span class="c-unit unit-name">${esc(unitName)}</span>
       <span class="acts">${speakBtn(w.en)}${starBtn(w.id)}</span></div>
-      ${open ? `<div class="drow-body"><div>${w.def ? `<p>${esc(w.def)}</p>` : ""}${w.ex ? `<p class="ex">${esc(w.ex)}</p>` : ""}
+      ${open ? `<div class="drow-body"><div>${w.def ? `<p>${esc(w.def)}</p>` : ""}${w.ex ? `<p class="ex">${esc(w.ex)}</p>` : ""}${w.exPt ? `<p class="muted">${esc(w.exPt)}</p>` : ""}
         <div class="refs"><a href="https://youglish.com/pronounce/${encodeURIComponent(w.en)}/english" target="_blank" rel="noopener">YouGlish</a>
         <a href="https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(w.en.toLowerCase())}" target="_blank" rel="noopener">Cambridge</a>
         <a href="https://www.merriam-webster.com/medical/${encodeURIComponent(w.en.toLowerCase())}" target="_blank" rel="noopener">Merriam-Webster Medical</a></div></div>

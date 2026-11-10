@@ -384,6 +384,8 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .fb-title { display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 22px; }
 .fb-title .ico { width: 30px; height: 30px; stroke-width: 3.2; background: var(--card); border-radius: 50%; padding: 4px; }
 .fb .icon-btn { color: inherit; }
+.fb-sent { display: flex; align-items: center; gap: 4px; font-size: 16px; margin-top: 2px; }
+.fb-tr { font-size: 16px; font-weight: 700; margin-top: 4px; opacity: .9; }
 .q-label { color: var(--heading); font-size: 22px; font-weight: 900; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .q-prompt { font-size: 30px; line-height: 1.2; font-weight: 900; color: var(--heading); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .q-prompt.md { font-size: 21px; font-weight: 800; }
