@@ -51,22 +51,37 @@
   /* ======================= Estado ======================= */
   const KEY = "inglesmedico_v1";
   const DEFAULTS = {
-    name: "", onboarded: false, xp: 0, daily: {}, streak: 0, bestStreak: 0, lastDay: null,
+    name: "", onboarded: false, level: null, placement: null, xp: 0, daily: {}, streak: 0, bestStreak: 0, lastDay: null,
     units: {}, srs: {}, mine: {}, custom: [], mistakes: {}, recent: [], cases: {}, badges: {}, today: null,
-    stats: { answers: 0, correct: 0, lessons: 0, perfect: 0, timedBest: 0, speakOk: 0, cards: 0 },
+    usmle: { srs: {}, showPt: false, perSession: 20 },
+    stats: { answers: 0, correct: 0, lessons: 0, perfect: 0, timedBest: 0, speakOk: 0, cards: 0, usmle: 0 },
     settings: { goal: 30, accent: "en-US", rate: 0.9, autoplay: true, pron: true, sfx: true, speech: true, free: false, theme: "auto" }
   };
   let state = load();
 
+  // Completa um estado salvo com os campos novos (também usado ao importar backups)
+  function hydrate(s) {
+    const base = JSON.parse(JSON.stringify(DEFAULTS));
+    const st = Object.assign(base, s, {
+      stats: Object.assign(base.stats, s.stats || {}),
+      settings: Object.assign(base.settings, s.settings || {}),
+      usmle: Object.assign(base.usmle, s.usmle || {})
+    });
+    // Quem já usava a plataforma antes dos níveis começava no Fundamentos (Seção 1)
+    if (st.onboarded && !st.level) st.level = "inter1";
+    // Flash cards USMLE no formato antigo (caixas de Leitner, data em texto) viram { ivl, ease, due em timestamp }
+    Object.values(st.usmle.srs || {}).forEach((r) => {
+      if (typeof r.due !== "string") return;
+      const [y, m, d] = r.due.split("-").map(Number);
+      r.ivl = [0, 1, 3, 7, 14, 30, 60][r.box || 0]; r.ease = 2.5; r.due = new Date(y, m - 1, d).getTime(); delete r.box;
+    });
+    return st;
+  }
   function load() {
     let s = null;
     try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) { s = null; }
-    const base = JSON.parse(JSON.stringify(DEFAULTS));
-    if (!s || typeof s !== "object") return base;
-    return Object.assign(base, s, {
-      stats: Object.assign(base.stats, s.stats || {}),
-      settings: Object.assign(base.settings, s.settings || {})
-    });
+    if (!s || typeof s !== "object") return JSON.parse(JSON.stringify(DEFAULTS));
+    return hydrate(s);
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* armazenamento indisponível */ } }
 
@@ -112,12 +127,12 @@
   const INTERVALS = [0, 1, 3, 7, 14, 30, 60];
   function srs(id) { return state.srs[id] || (state.srs[id] = { box: 0, due: dayStr(), seen: 0, ok: 0, bad: 0 }); }
   // q: 0 errei · 1 difícil · 2 bom · 3 fácil
-  function srsRate(id, q) {
-    const s = srs(id);
+  function rateRecord(s, q) {
     s.seen++;
     if (q === 0) { s.box = 0; s.bad++; } else { s.ok++; s.box = Math.min(INTERVALS.length - 1, q === 1 ? Math.max(1, s.box) : s.box + (q === 3 ? 2 : 1)); }
     s.due = addDays(dayStr(), INTERVALS[s.box]);
   }
+  function srsRate(id, q) { rateRecord(srs(id), q); }
   const learnedIds = () => Object.keys(state.srs).filter((id) => state.srs[id].seen > 0 && getWord(id));
   const dueIds = () => learnedIds().filter((id) => state.srs[id].due <= dayStr());
 
@@ -130,8 +145,28 @@
   const unitDone = (uid) => state.units[uid] || [];
   const stepDone = (uid, i) => unitDone(uid).includes(i);
   function markStep(uid, i) { const d = unitDone(uid); if (!d.includes(i)) { d.push(i); state.units[uid] = d; } save(); }
+  /* ---------- Níveis ---------- */
+  const LEVELS = [
+    { id: "basic", emo: "🌱", name: "Básico", tag: "Quero aprender inglês", start: "s0",
+      desc: "Começa do zero, com cumprimentos, verbos do dia a dia e perguntas, e depois entra no vocabulário médico." },
+    { id: "inter1", emo: "🩺", name: "Intermediário · Fase 1", tag: "Já sei inglês, agora quero aprender inglês médico", start: "s1",
+      desc: "Pula o inglês geral e começa no inglês médico: hospital, corpo humano, sintomas, anamnese e exame físico." },
+    { id: "inter2", emo: "🏥", name: "Intermediário · Fase 2", tag: "Já sei inglês e o vocabulário médico básico", start: "s3",
+      desc: "Começa nos sistemas do corpo e no plantão: cardiologia, pneumologia, medicamentos, exames e abreviações." },
+    { id: "adv", emo: "🎓", name: "Avançado", tag: "Já sei bastante e quero me aprofundar", start: "s5",
+      desc: "Apresentação de casos, linguagem da fisiopatologia, artigos científicos e comunicação difícil (nível C1)." },
+    { id: "usmle", emo: "🏆", name: "USMLE", tag: "Quero me preparar para a prova", start: "s5", startUnit: "vignettes",
+      desc: "Os 9.733 Flash cards USMLE do Step 1 em 16 matérias, mais a linguagem das questões da prova." }
+  ];
+  const LEVEL = (id) => LEVELS.find((l) => l.id === id);
+  // Primeira unidade do nível escolhido: ela e as anteriores ficam abertas
+  function startIdx() {
+    const l = LEVEL(state.level); if (!l) return 0;
+    const i = l.startUnit ? UNITS.findIndex((u) => u.id === l.startUnit) : UNITS.findIndex((u) => u.section === l.start);
+    return i < 0 ? 0 : i;
+  }
   function unitUnlocked(idx) {
-    if (state.settings.free || idx === 0) return true;
+    if (state.settings.free || idx <= startIdx()) return true;
     const prev = UNITS[idx - 1].id;
     return [0, 1, 2].every((i) => stepDone(prev, i));
   }
@@ -241,11 +276,13 @@
     return `<div class="rcard"><div class="goal-row"><span class="e">💾</span><div style="flex:1"><b>Salve uma cópia do progresso</b>
       <div class="muted small">Ele fica só neste navegador.</div></div></div><button class="btn sm" data-backup style="margin-top:12px">Salvar progresso</button></div>`;
   }
-  const NO_RAIL = ["dict", "mine", "profile", "settings", "resources", "cards", "unit", "case"];
+  const NO_RAIL = ["dict", "mine", "profile", "settings", "resources", "cards", "unit", "case", "usmle", "placement"];
   function renderShell(name) {
-    const lv = levelOf(state.xp), due = dueIds().length, st = currentStreak();
+    const lv = levelOf(state.xp), due = dueIds().length, st = currentStreak(), udue = usmleCounts().due;
     $("#nav-due").textContent = due ? due : "";
     $("#nav-due").setAttribute("aria-label", due ? plural(due, "palavra para revisar", "palavras para revisar") : "");
+    $("#nav-usmle").textContent = udue ? udue : "";
+    $("#nav-usmle").setAttribute("aria-label", udue ? plural(udue, "cartão USMLE para revisar", "cartões USMLE para revisar") : "");
     const stats = `<a class="stat fire" href="#/profile" title="Ofensiva"><span class="e">🔥</span>${st}</a>
       <a class="stat xp" href="#/profile" title="XP total"><span class="e">⚡</span>${state.xp}</a>
       <a class="stat lv" href="#/profile" title="Nível ${lv}, ${titleOf(lv)}"><span class="e">🎓</span>${lv}</a>`;
@@ -802,7 +839,7 @@
   function route() {
     const [r, arg] = location.hash.replace(/^#\/?/, "").split("/");
     const name = ROUTES[r] ? r : "learn";
-    const navName = { case: "cases", unit: "learn", import: "learn" }[name] || name;
+    const navName = { case: "cases", unit: "learn", import: "learn", placement: state.onboarded ? "settings" : "learn" }[name] || name;
     $$("[data-route]").forEach((a) => {
       const on = a.dataset.route === navName;
       a.classList.toggle("active", on);
@@ -822,26 +859,66 @@
     const d = dayStr().split("-").map(Number); const n = d[0] * 372 + d[1] * 31 + d[2];
     return ALL_WORDS[n % ALL_WORDS.length];
   }
+  // Próxima etapa: começa pela unidade inicial do nível e só depois volta às anteriores
   function nextStep() {
-    for (let i = 0; i < UNITS.length; i++) {
-      if (!unitUnlocked(i)) break;
+    const s0 = startIdx(), order = UNITS.map((_, i) => i);
+    for (const i of order.slice(s0).concat(order.slice(0, s0))) {
+      if (!unitUnlocked(i)) continue;
       const s = nextStepOf(UNITS[i].id); if (s >= 0) return { uid: UNITS[i].id, step: s };
     }
     return null;
   }
   const OFFS = [0, 48, 76, 48, 0];
   const STEP_XP = (i) => (i === 4 ? 20 : 10);
-  ROUTES.learn = function () {
-    const nx = nextStep();
-    let html = "";
-    if (!state.onboarded) {
-      html += `<div class="welcome"><svg aria-hidden="true"><use href="#doc"/></svg><div class="speech">
-        <h2>Olá! Eu sou o Doc. 👋</h2><p style="margin:6px 0 14px">Vou te acompanhar no inglês médico com lições curtas, flashcards e casos clínicos. Antes de começar:</p>
-        <form id="ob"><div class="field"><label for="ob-name">Como quer ser chamado(a)?</label><input type="text" id="ob-name" placeholder="Ex.: Dra. Ana"></div>
-        <div class="field"><label for="ob-goal">Meta diária</label><select id="ob-goal"><option value="10">10 XP · leve, 5 min</option><option value="20">20 XP · normal, 10 min</option><option value="30" selected>30 XP · sério, 15 min</option><option value="50">50 XP · intenso, 25 min</option></select></div>
-        <div class="field"><label for="ob-level">Seu inglês hoje</label><select id="ob-level"><option value="0">Iniciante, quero começar do zero</option><option value="1">Já tenho base, liberar todas as unidades</option></select></div>
-        <button class="btn primary" type="submit" style="width:100%">Começar a primeira lição</button></form></div></div>`;
+  /* ---------- Boas-vindas e escolha do nível ---------- */
+  const OB = { step: 1 };
+  function levelRows(current) {
+    return LEVELS.map((l) => `<button class="rowcard level-opt ${l.id === current ? "on" : ""}" data-level="${l.id}"><span class="emo" aria-hidden="true">${l.emo}</span>
+      <span class="main-col"><span class="t">${esc(l.name)}</span><span class="tag">“${esc(l.tag)}”</span><span class="ld">${esc(l.desc)}</span></span>${l.id === current ? '<span class="pill pos">Atual</span>' : ""}${I("chev")}</button>`).join("");
+  }
+  function setLevel(id, fromPlacement) {
+    const l = LEVEL(id); if (!l) return;
+    state.level = id; state.onboarded = true; save();
+    const sec = SECTIONS.find((s) => s.id === l.start);
+    toast(id === "usmle" ? "Nível USMLE. Comece pelos Flash cards USMLE." : `Nível ${l.name}. Sua trilha começa em ${sec.title}.`);
+    if (id === "usmle") { location.hash = "#/usmle"; return; }
+    if (location.hash === "#/learn") route(); else location.hash = "#/learn";
+    if (fromPlacement) window.scrollTo(0, 0);
+  }
+  function onboarding() {
+    const bubble = (h, p, body) => `<div class="welcome"><svg aria-hidden="true"><use href="#doc"/></svg><div class="speech"><h2>${h}</h2><p style="margin:6px 0 14px">${p}</p>${body}</div></div>`;
+    if (OB.step === 1) {
+      view.innerHTML = bubble("Olá! Eu sou o Doc. 👋", "Vou te acompanhar no inglês, do básico até o USMLE, com lições curtas, flashcards e casos clínicos. Antes de começar:",
+        `<form id="ob"><div class="field"><label for="ob-name">Como quer ser chamado(a)?</label><input type="text" id="ob-name" placeholder="Ex.: Dra. Ana" value="${esc(state.name)}"></div>
+        <div class="field"><label for="ob-goal">Meta diária</label><select id="ob-goal">${[[10, "10 XP · leve, 5 min"], [20, "20 XP · normal, 10 min"], [30, "30 XP · sério, 15 min"], [50, "50 XP · intenso, 25 min"]].map(([v, l]) => `<option value="${v}" ${v === state.settings.goal ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <button class="btn primary" type="submit" style="width:100%">Continuar</button></form>`);
+      $("#ob").addEventListener("submit", (e) => {
+        e.preventDefault();
+        state.name = $("#ob-name").value.trim(); state.settings.goal = Number($("#ob-goal").value); save();
+        OB.step = 2; onboarding(); window.scrollTo(0, 0);
+      });
+      return;
     }
+    view.innerHTML = bubble(`${state.name ? esc(state.name) + ", qual" : "Qual"} é o seu nível de inglês?`, "Escolha o nível que mais combina com você. Se não tiver certeza, faça a lição de triagem: são 18 perguntas rápidas e eu digo por onde começar.",
+      `<a class="btn blue" href="#/placement" style="width:100%">🧭 Fazer a lição de triagem</a>`) +
+      `<div class="rows level-list">${levelRows(null)}</div>
+      <p class="muted small" style="margin-top:12px">Dá para mudar o nível depois em Ajustes. <button class="link" id="ob-back">Voltar</button></p>`;
+    $$("[data-level]").forEach((b) => b.addEventListener("click", () => setLevel(b.dataset.level)));
+    $("#ob-back").addEventListener("click", () => { OB.step = 1; onboarding(); });
+  }
+  function levelBanner() {
+    const l = LEVEL(state.level) || LEVELS[1], si = SECTIONS.findIndex((s) => s.id === l.start), u = usmleCounts();
+    let h = `<div class="level-card"><span class="emo" aria-hidden="true">${l.emo}</span><div class="lc-text"><small>Seu nível</small><b>${esc(l.name)}</b>
+      <span>${l.id === "usmle" ? "Foco nos Flash cards USMLE e na linguagem das questões. A trilha toda está aberta." : `Sua trilha começa na Seção ${si + 1}: ${esc(SECTIONS[si].title)}.`}</span></div>
+      <a class="btn sm" href="#/settings/nivel">Mudar</a></div>`;
+    if (l.id === "usmle" || l.id === "adv") h += `<a class="usmle-promo" href="#/usmle"><span class="emo" aria-hidden="true">🧬</span><span class="main-col"><b>Flash cards USMLE</b>
+      <span>${u.seen.toLocaleString("pt-BR")} de ${USMLE_TOTAL.toLocaleString("pt-BR")} cartões estudados${u.due ? " · " + plural(u.due, "para revisar hoje", "para revisar hoje") : ""}</span></span>${I("chev")}</a>`;
+    return h;
+  }
+  ROUTES.learn = function () {
+    if (!state.onboarded) { onboarding(); return; }
+    const nx = nextStep();
+    let html = levelBanner();
     const g = state.settings.goal, x = todayXP(), qd = quests().filter((q) => q.v >= q.n).length;
     html += `<div class="mobile-day"><div class="rcard"><div class="goal-row"><span class="e">${x >= g ? "🏆" : "🎯"}</span><div style="flex:1"><b>${Math.min(x, g)} de ${g} XP hoje</b>
       <div class="qbar green"><div style="width:${pct(x, g)}%"></div></div></div><button class="btn sm" data-quests>Missões ${qd}/4</button></div>
@@ -864,17 +941,89 @@
         html += `<svg class="mascot ${unl ? "" : "gray"}" style="${sign > 0 ? "left:calc(50% - 170px)" : "left:calc(50% + 60px)"};top:150px" aria-hidden="true"><use href="#doc"/></svg></div>`;
       });
     });
-    html += state.settings.free || !state.onboarded ? "" : `<p class="path-note">Já tem base em inglês? Libere todas as unidades em <a href="#/settings">Ajustes</a>.</p>`;
+    html += state.settings.free ? "" : `<p class="path-note">Quer abrir tudo de uma vez? Ative o modo livre em <a href="#/settings">Ajustes</a>.</p>`;
     view.innerHTML = html;
-    const ob = $("#ob");
-    if (ob) ob.addEventListener("submit", (e) => {
-      e.preventDefault();
-      state.name = $("#ob-name").value.trim(); state.settings.goal = Number($("#ob-goal").value);
-      state.settings.free = $("#ob-level").value === "1"; state.onboarded = true; save(); route(); startStep(UNITS[0].id, 0);
-    });
     $$(".node").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); nodePop(b); }));
-    const cur = $(".node.current"); if (cur && state.onboarded && !location.hash.includes("noscroll")) cur.scrollIntoView({ block: "center", behavior: "instant" });
+    const cur = $(".node.current"); if (cur && !location.hash.includes("noscroll")) cur.scrollIntoView({ block: "center", behavior: "instant" });
   };
+
+  /* ---------- Lição de triagem (nivelamento) ---------- */
+  const PL_BLOCKS = [
+    { name: "Inglês geral", need: 3 },
+    { name: "Inglês médico básico", need: 3 },
+    { name: "Inglês clínico", need: 3 },
+    { name: "Inglês avançado", need: 2 },
+    { name: "Conteúdo do USMLE Step 1", need: 2 }
+  ];
+  const PLACEMENT = [
+    [0, "Complete: She ___ a nurse.", ["are", "is", "am", "be"], 1],
+    [0, "O que significa “I am tired”?", ["Estou com fome", "Estou atrasado", "Estou cansado", "Estou doente"], 2],
+    [0, "Complete: Yesterday I ___ to the hospital.", ["went", "go", "gone", "going"], 0],
+    [0, "Qual pergunta está correta?", ["Where you live?", "Where does you live?", "Where living you?", "Where do you live?"], 3],
+    [1, "O que significa “chest pain”?", ["Dor nas costas", "Dor no peito", "Dor de cabeça", "Dor de garganta"], 1],
+    [1, "Complete: The ___ checked the patient's blood pressure.", ["nurse", "stretcher", "ward", "discharge"], 0],
+    [1, "Como se diz “pronto-socorro” no inglês americano?", ["First room", "Urgent house", "Emergency room", "Help center"], 2],
+    [1, "O que significa “shortness of breath”?", ["Tosse seca", "Respiração normal", "Espirro", "Falta de ar"], 3],
+    [2, "Na anamnese, “How long have you had this cough?” pergunta sobre:", ["A intensidade", "A duração", "O local", "A causa"], 1],
+    [2, "“Take a deep breath and hold it” é um comando dado durante:", ["O exame físico", "A prescrição", "A alta", "A cirurgia"], 0],
+    [2, "“The patient pretends to be asleep” quer dizer que o paciente:", ["Pretende dormir", "Precisa dormir", "Finge que está dormindo", "Prefere dormir"], 2],
+    [2, "Na receita, “Take one tablet PRN” significa:", ["Antes de dormir", "Em jejum", "Duas vezes ao dia", "Se necessário"], 3],
+    [3, "“These findings suggest, but do not prove, a causal relationship.” Os autores estão:", ["Cautelosos sobre a causalidade", "Certos da causalidade", "Negando qualquer associação", "Descrevendo uma cura"], 0],
+    [3, "Na apresentação de um caso, “the patient denies fever” significa:", ["Ele se recusa a medir a febre", "Ele relata que não teve febre", "Ele tem febre mas esconde", "Ele tem febre alta"], 1],
+    [3, "“The physical exam was unremarkable” significa que o exame foi:", ["Impossível de lembrar", "Muito alterado", "Sem alterações relevantes", "Não realizado"], 2],
+    [4, "A boy has hyperuricemia, gout, self-mutilation and dystonia. Which enzyme is deficient?", ["Adenosine deaminase", "Xanthine oxidase", "Glucose-6-phosphatase", "HGPRT"], 3],
+    [4, "A patient taking an ACE inhibitor develops a dry cough. Which substance accumulates?", ["Bradykinin", "Angiotensin II", "Renin", "Aldosterone"], 0],
+    [4, "Deficiency of which vitamin causes Wernicke encephalopathy?", ["Niacin (B3)", "Thiamine (B1)", "Cobalamin (B12)", "Vitamin C"], 1]
+  ];
+  const PT = { i: 0, answers: [], sel: null };
+  function placementLevel(score) {
+    const pass = score.map((n, b) => n >= PL_BLOCKS[b].need);
+    if (!pass[0]) return "basic";
+    if (!pass[1] || !pass[2]) return "inter1";
+    if (!pass[3]) return "inter2";
+    if (!pass[4]) return "adv";
+    return "usmle";
+  }
+  ROUTES.placement = function () {
+    if (PT.i >= PLACEMENT.length) { placementResult(); return; }
+    const [b, q, opts] = PLACEMENT[PT.i];
+    view.innerHTML = backLink(state.onboarded ? "#/settings/nivel" : "#/learn", state.onboarded ? "Ajustes" : "Voltar") +
+      `<div class="placement"><div class="pl-head"><span class="muted small">Parte ${b + 1} de ${PL_BLOCKS.length} · ${esc(PL_BLOCKS[b].name)}</span><span class="muted small num">${PT.i + 1} / ${PLACEMENT.length}</span></div>
+      <div class="qbar green" style="margin-bottom:24px"><div style="width:${pct(PT.i, PLACEMENT.length)}%"></div></div>
+      <div class="q-prompt md">${esc(q)}</div>
+      <div class="options">${opts.map((o, i) => `<button class="opt ${PT.sel === i ? "sel" : ""}" data-o="${i}"><span class="k">${i + 1}</span><span>${esc(o)}</span></button>`).join("")}</div>
+      <div class="row" style="margin-top:20px"><button class="btn ghost" id="pl-dunno">Não sei</button><span class="spacer"></span><button class="btn primary" id="pl-next" ${PT.sel == null ? "disabled" : ""}>${PT.i === PLACEMENT.length - 1 ? "Ver resultado" : "Continuar"}</button></div>
+      <p class="muted small" style="margin-top:16px">A triagem não mostra se você acertou; o resultado sai no fim. Atalhos: 1 a 4 escolhem, Enter continua.</p></div>`;
+    $$("[data-o]").forEach((btn) => btn.addEventListener("click", () => { PT.sel = Number(btn.dataset.o); ROUTES.placement(); }));
+    const answer = (v) => { PT.answers[PT.i] = v; PT.i++; PT.sel = null; ROUTES.placement(); window.scrollTo(0, 0); };
+    $("#pl-next").addEventListener("click", () => answer(PT.sel));
+    $("#pl-dunno").addEventListener("click", () => answer(-1));
+  };
+  document.addEventListener("keydown", (e) => {
+    if (!location.hash.startsWith("#/placement") || PT.i >= PLACEMENT.length || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if (/^[1-4]$/.test(e.key)) { PT.sel = Number(e.key) - 1; ROUTES.placement(); }
+    else if (e.key === "Enter" && PT.sel != null) { e.preventDefault(); $("#pl-next").click(); }
+  });
+  function placementResult() {
+    const score = PL_BLOCKS.map(() => 0);
+    PLACEMENT.forEach(([b, , , a], i) => { if (PT.answers[i] === a) score[b]++; });
+    const rec = LEVEL(placementLevel(score)), total = score.reduce((s, n) => s + n, 0);
+    state.placement = { at: Date.now(), score, level: rec.id }; save();
+    view.innerHTML = `<div class="welcome"><svg aria-hidden="true"><use href="#doc"/></svg><div class="speech">
+        <h2>Resultado: ${rec.emo} ${esc(rec.name)}</h2><p style="margin:6px 0 0">Você acertou ${total} de ${PLACEMENT.length}. ${esc(rec.desc)}</p></div></div>
+      <div class="panel"><div class="panel-head"><h2>Por parte</h2></div><div class="kv">
+        ${PL_BLOCKS.map((b, i) => `<div><span>${esc(b.name)}</span><b>${score[i]} de ${PLACEMENT.filter((q) => q[0] === i).length} ${score[i] >= b.need ? "✅" : ""}</b></div>`).join("")}</div>
+        <p class="muted" style="margin-top:12px">Cada parte é aprovada com ${PL_BLOCKS.map((b) => b.need).join(", ")} acertos, respectivamente. O nível indicado é o primeiro em que você ainda tem algo a aprender.</p></div>
+      <div class="row wrap" style="margin-top:16px"><button class="btn primary" id="pr-go">Começar pelo ${esc(rec.name)}</button><button class="btn" id="pr-again">Refazer a triagem</button>
+        <button class="btn ghost" id="pr-other">Escolher outro nível</button></div>`;
+    const reset = () => { PT.i = 0; PT.answers = []; PT.sel = null; };
+    $("#pr-go").addEventListener("click", () => { reset(); setLevel(rec.id, true); });
+    $("#pr-again").addEventListener("click", () => { reset(); ROUTES.placement(); });
+    $("#pr-other").addEventListener("click", () => {
+      reset();
+      if (state.onboarded) location.hash = "#/settings/nivel"; else { OB.step = 2; location.hash = "#/learn"; }
+    });
+  }
   // Balão de cada nó da trilha, como no Duolingo
   function nodePop(b) {
     const open = b.parentElement.querySelector(".node-pop");
@@ -1015,6 +1164,200 @@
       FC.i++; FC.flipped = false; renderCard();
     }));
   }
+
+  /* ---------- Flash cards USMLE ---------- */
+  // Índice em js/usmle/index.js; os cartões de cada matéria vêm de js/usmle/<id>.js, carregados só quando abertos.
+  // Cada cartão: [id, pergunta, resposta em inglês, explicação em português]. Progresso em state.usmle.srs["<matéria>:<id>"].
+  const USMLE_LIST = typeof USMLE_CLASSES !== "undefined" ? USMLE_CLASSES : [];
+  const USMLE_TOTAL = USMLE_LIST.reduce((s, c) => s + c.n, 0);
+  const UCLASS = Object.fromEntries(USMLE_LIST.map((c) => [c.id, c]));
+  /* Agendamento no estilo Anki. Cada registro: { ivl (dias; 0 = aprendendo), ease, due (timestamp), seen, ok, bad }.
+   * Primeira vez (ou depois de errar): Errei 1 min · Difícil 10 min · Bom 1 dia · Fácil 2 dias.
+   * Depois: Errei volta em 1 min e recomeça; Difícil cresce pouco; Bom multiplica pela facilidade; Fácil cresce mais. */
+  const MIN = 60000;
+  const startOfDay = (offset) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + offset); return d.getTime(); };
+  const endOfToday = () => startOfDay(1) - 1;
+  function usmlePlan(r) {
+    const ivl = r && r.ivl > 0 ? r.ivl : 0, ease = (r && r.ease) || 2.5;
+    if (!ivl) return [{ min: 1 }, { min: 10 }, { days: 1 }, { days: 2 }];
+    const hard = Math.max(ivl + 1, Math.round(ivl * 1.2));
+    const good = Math.max(hard + 1, Math.round(ivl * ease));
+    const easy = Math.max(good + 1, Math.round(ivl * ease * 1.3));
+    return [{ min: 1 }, { days: Math.min(hard, 3650) }, { days: Math.min(good, 3650) }, { days: Math.min(easy, 3650) }];
+  }
+  function usmleRate(r, q) {
+    const p = usmlePlan(r)[q], wasReview = r.ivl > 0;
+    r.seen++; if (q === 0) r.bad++; else r.ok++;
+    r.ease = r.ease || 2.5;
+    if (wasReview) {
+      if (q === 0) r.ease = Math.max(1.3, r.ease - 0.2);
+      else if (q === 1) r.ease = Math.max(1.3, r.ease - 0.15);
+      else if (q === 3) r.ease += 0.15;
+    }
+    if (p.min) { r.ivl = 0; r.due = Date.now() + p.min * MIN; } else { r.ivl = p.days; r.due = startOfDay(p.days); }
+    return p;
+  }
+  function fmtPlan(p) {
+    if (p.min) return p.min + " min";
+    if (p.days < 30) return plural(p.days, "dia", "dias");
+    if (p.days < 365) { const m = Math.round(p.days / 30); return m + (m === 1 ? " mês" : " meses"); }
+    const y = Math.round(p.days / 36.5) / 10; return String(y).replace(".", ",") + (y === 1 ? " ano" : " anos");
+  }
+  function usmleCounts(cid) {
+    const t = endOfToday(); let seen = 0, due = 0, solid = 0;
+    for (const k in state.usmle.srs) {
+      if (cid && !k.startsWith(cid + ":")) continue;
+      const r = state.usmle.srs[k]; if (!r.seen) continue;
+      seen++; if (r.due <= t) due++; if (r.ivl >= 7) solid++;
+    }
+    return { seen, due, solid };
+  }
+  function loadUsmle(id) {
+    return new Promise((res, rej) => {
+      if (window.USMLE_DATA && window.USMLE_DATA[id]) { res(window.USMLE_DATA[id]); return; }
+      const s = document.createElement("script");
+      s.src = "js/usmle/" + id + ".js";
+      s.onload = () => (window.USMLE_DATA && window.USMLE_DATA[id] ? res(window.USMLE_DATA[id]) : rej(new Error("vazio")));
+      s.onerror = () => rej(new Error("falha ao carregar"));
+      document.head.appendChild(s);
+    });
+  }
+  // queue: cartões da sessão; learn: cartões em aprendizado (1 ou 10 min) que voltam quando vencerem; cur: cartão na tela
+  const US = { cls: null, classes: [], topic: "all", lastCls: null, mode: "smart", queue: [], i: 0, learn: [], cur: null, shown: false, ptOpen: false, done: 0, timer: null };
+  function usmleQueue() {
+    const now = Date.now(), eod = endOfToday(), scope = [];
+    US.classes.forEach((c) => window.USMLE_DATA[c.id].forEach((tp, ti) => {
+      if (US.cls !== "due" && US.topic !== "all" && String(ti) !== US.topic) return;
+      tp.cards.forEach((card) => scope.push({ cid: c.id, topic: tp.name, card, key: c.id + ":" + card[0] }));
+    }));
+    const rec = (x) => state.usmle.srs[x.key];
+    // Em aprendizado de uma sessão anterior e ainda não vencido: volta quando chegar a hora
+    US.learn = scope.filter((x) => { const r = rec(x); return r && r.seen && r.due > now && r.due <= eod; }).map((x) => ({ x, due: rec(x).due }));
+    const due = scope.filter((x) => { const r = rec(x); return r && r.seen && r.due <= now; }).sort((a, b) => rec(a).due - rec(b).due);
+    if (US.cls === "due") return due;
+    if (US.mode === "all") { const inLearn = new Set(US.learn.map((l) => l.x.key)); return scope.filter((x) => !inLearn.has(x.key)); }
+    return due.concat(scope.filter((x) => !rec(x) || !rec(x).seen).slice(0, state.usmle.perSession));
+  }
+  // Escolhe o próximo cartão: primeiro os de aprendizado que já venceram, depois a fila
+  function usmleNext() {
+    clearTimeout(US.timer);
+    const now = Date.now();
+    US.learn.sort((a, b) => a.due - b.due);
+    if (US.learn.length && US.learn[0].due <= now) US.cur = US.learn.shift().x;
+    else if (US.i < US.queue.length) US.cur = US.queue[US.i++];
+    else US.cur = null;
+    US.shown = false; US.ptOpen = false;
+    usmleCard();
+  }
+  const usmleLeft = () => (US.queue.length - US.i) + US.learn.length + (US.cur ? 1 : 0);
+  ROUTES.usmle = function (arg) {
+    if (arg && (UCLASS[arg] || arg === "due")) { usmleOpen(arg); return; }
+    const all = usmleCounts();
+    view.innerHTML = titleRow("Flash cards USMLE", `${USMLE_TOTAL.toLocaleString("pt-BR")} cartões originais do USMLE Step 1, em inglês, em ${USMLE_LIST.length} matérias. Cada resposta traz uma explicação curta em português, que aparece só se você quiser.`,
+      all.due ? `<a class="btn blue" href="#/usmle/due">🔁 Revisar ${all.due} de hoje</a>` : "") +
+      `<div class="kpis">
+        <div><div class="label">Estudados</div><div class="value">${all.seen.toLocaleString("pt-BR")}<small> de ${USMLE_TOTAL.toLocaleString("pt-BR")}</small></div><div class="cap">${USMLE_TOTAL ? Math.round((all.seen / USMLE_TOTAL) * 100) : 0}% do Step 1</div></div>
+        <div><div class="label">Para revisar hoje</div><div class="value">${all.due}</div><div class="cap">Repetição espaçada</div></div>
+        <div><div class="label">Firmes</div><div class="value">${all.solid}</div><div class="cap">Revisão em 7 dias ou mais</div></div>
+        <div><div class="label">Explicação em PT</div><div class="value"><label class="switch"><input type="checkbox" id="us-pt" ${state.usmle.showPt ? "checked" : ""} aria-label="Mostrar a explicação em português junto com a resposta"><span></span></label></div>
+          <div class="cap" id="us-pt-cap">${state.usmle.showPt ? "Aparece junto com a resposta" : "Só quando você tocar"}</div></div></div>
+      <div class="usmle-grid">${USMLE_LIST.map((c) => {
+        const k = usmleCounts(c.id);
+        return `<a class="ucls" href="#/usmle/${c.id}"><span class="emo" aria-hidden="true">${c.icon}</span><span class="main-col"><b>${esc(c.en)}</b>
+          <span class="st">${esc(c.pt)} · ${c.n} cartões${k.due ? ` · <span class="due">${k.due} para hoje</span>` : ""}</span>
+          <span class="bar" aria-label="${k.seen} de ${c.n} estudados"><span style="width:${pct(k.seen, c.n)}%"></span></span></span>${I("chev")}</a>`;
+      }).join("")}</div>
+      <p class="muted small" style="margin-top:16px">Cartões escritos do zero para esta plataforma, seguindo os temas do Step 1. Material de estudo: confira sempre com as fontes oficiais.</p>`;
+    $("#us-pt").addEventListener("change", (e) => { state.usmle.showPt = e.target.checked; save(); $("#us-pt-cap").textContent = e.target.checked ? "Aparece junto com a resposta" : "Só quando você tocar"; });
+  };
+  function usmleOpen(cid) {
+    const classes = cid === "due" ? USMLE_LIST.filter((c) => usmleCounts(c.id).due) : [UCLASS[cid]];
+    view.innerHTML = backLink("#/usmle", "Flash cards USMLE") + `<p class="empty-line">Carregando os cartões…</p>`;
+    Promise.all(classes.map((c) => loadUsmle(c.id))).then(() => {
+      if (location.hash.replace(/^#\/?/, "") !== "usmle/" + cid) return; // o usuário já saiu da tela
+      if (US.lastCls !== cid) { US.topic = "all"; US.lastCls = cid; }
+      US.cls = cid; US.classes = classes; usmleStudy();
+    }).catch(() => {
+      view.innerHTML = backLink("#/usmle", "Flash cards USMLE") + `<p class="empty-line">Não foi possível carregar os cartões. Confira se a pasta js/usmle foi publicada junto com o site.</p>`;
+    });
+  }
+  function usmleStudy() {
+    const cid = US.cls, c = UCLASS[cid], k = usmleCounts(cid === "due" ? null : cid);
+    US.queue = usmleQueue(); US.i = 0; US.cur = null; US.done = 0;
+    const seg = (v, l) => `<button data-mode="${v}" class="${US.mode === v ? "on" : ""}" aria-pressed="${US.mode === v}">${l}</button>`;
+    view.innerHTML = backLink("#/usmle", "Flash cards USMLE") +
+      titleRow(cid === "due" ? "🔁 Revisão de hoje" : c.icon + " " + esc(c.en), cid === "due" ? "Os cartões de todas as matérias que vencem hoje." : `${esc(c.pt)} · ${c.n} cartões em ${c.topics.length} temas`) +
+      `<div class="toolbar">${cid === "due" ? "" : `<select id="us-topic" aria-label="Tema"><option value="all">Todos os temas (${c.n})</option>${c.topics.map(([n, q], i) => `<option value="${i}">${esc(n)} (${q})</option>`).join("")}</select>
+        <div class="seg" role="group" aria-label="Modo de estudo">${seg("smart", "Revisão + " + state.usmle.perSession + " novos")}${seg("all", "Todos em ordem")}</div>`}
+        <label class="pt-toggle"><span>Explicação em PT</span><span class="switch"><input type="checkbox" id="us-pt" ${state.usmle.showPt ? "checked" : ""} aria-label="Mostrar a explicação em português junto com a resposta"><span></span></span></label></div>
+      <div class="grid12" style="align-items:start"><div class="s8" id="us-area"></div>
+      <div class="s4" style="display:flex;flex-direction:column;gap:16px"><div class="panel"><div class="panel-head"><h2>${cid === "due" ? "Todas as matérias" : "Nesta matéria"}</h2></div><div class="kv">
+        <div><span>Estudados</span><b>${k.seen}${cid === "due" ? "" : " de " + c.n}</b></div><div><span>Para revisar hoje</span><b>${k.due}</b></div><div><span>Firmes (7 dias ou mais)</span><b>${k.solid}</b></div></div>
+        <p class="muted" style="margin-top:12px">Na primeira vez: Errei volta em 1 min, Difícil em 10 min, Bom em 1 dia e Fácil em 2 dias. Depois, cada resposta ajusta o intervalo: Difícil volta mais rápido, Bom espaça e Fácil demora mais para voltar.</p>
+        <p class="muted small" style="margin-top:8px">Atalhos: espaço mostra a resposta, 1 a 4 avaliam, P abre o português.</p></div></div></div>`;
+    const t = $("#us-topic"); if (t) { t.value = US.topic; t.addEventListener("change", (e) => { US.topic = e.target.value; usmleStudy(); }); }
+    $$("[data-mode]").forEach((b) => b.addEventListener("click", () => { US.mode = b.dataset.mode; usmleStudy(); }));
+    $("#us-pt").addEventListener("change", (e) => { state.usmle.showPt = e.target.checked; save(); usmleCard(); });
+    usmleNext();
+  }
+  function usmleCard() {
+    const area = $("#us-area"); if (!area) return;
+    clearTimeout(US.timer);
+    if (!US.cur && US.learn.length) {
+      // Só restam cartões em aprendizado que ainda não venceram: espera (ou mostra antes)
+      const wait = Math.max(0, US.learn[0].due - Date.now()), mins = Math.ceil(wait / MIN);
+      area.innerHTML = `<div class="fc-stage"><div class="panel-head"><h2>Quase lá</h2></div>
+        <p class="empty-line">${plural(US.learn.length, "cartão volta", "cartões voltam")} em breve. O próximo aparece em ${mins <= 1 ? "menos de 1 minuto" : mins + " minutos"}.</p>
+        <div class="row wrap" style="margin-top:12px"><button class="btn primary" id="us-now">Mostrar agora</button><a class="btn" href="#/usmle">Outra matéria</a></div></div>`;
+      $("#us-now").addEventListener("click", () => { US.cur = US.learn.shift().x; US.shown = false; US.ptOpen = false; usmleCard(); });
+      US.timer = setTimeout(() => { if ($("#us-area") && !US.cur) usmleNext(); }, Math.min(wait + 200, 30000));
+      return;
+    }
+    if (!US.cur) {
+      const msg = !US.queue.length && !US.done
+        ? (US.cls === "due" ? "Nenhum cartão vence hoje. Volte amanhã." : US.mode === "smart" ? "Nada vencido e nenhum cartão novo neste tema." : "Este tema não tem cartões.")
+        : `Você respondeu ${plural(US.done, "cartão", "cartões")} nesta sessão.`;
+      area.innerHTML = `<div class="fc-stage"><div class="panel-head"><h2>${US.done ? "Sessão concluída 🎉" : "Tudo em dia"}</h2></div><p class="empty-line">${msg}</p>
+        <div class="row wrap" style="margin-top:12px">${US.cls !== "due" && US.mode === "smart" ? `<button class="btn primary" id="us-more">Mais ${state.usmle.perSession} cartões</button>` : ""}<a class="btn" href="#/usmle">Outra matéria</a></div></div>`;
+      const more = $("#us-more"); if (more) more.addEventListener("click", usmleStudy);
+      return;
+    }
+    const x = US.cur, r = state.usmle.srs[x.key], old = r && r.seen, plan = usmlePlan(r);
+    const tag = !old ? ["pos", "Novo"] : r.ivl > 0 ? ["acc", "Revisão"] : ["", "Aprendendo"];
+    const pt = x.card[3], showPt = state.usmle.showPt || US.ptOpen;
+    area.innerHTML = `<div class="fc-stage"><div class="panel-head"><h2 class="num">${plural(usmleLeft(), "cartão restante", "cartões restantes")}</h2><span class="spacer"></span>
+        <span class="pill ${tag[0]}">${tag[1]}</span>${speakBtn(x.card[1], "Ouvir a pergunta")}</div>
+      <div class="ucard"><div class="u-topic">${esc(UCLASS[x.cid].en)} · ${esc(x.topic)}</div><div class="u-q">${esc(x.card[1])}</div>
+        ${US.shown ? `<div class="u-a"><div class="u-a-en">${esc(x.card[2])}</div>
+          ${pt ? (showPt ? `<div class="u-pt"><span class="u-flag">PT</span><span>${esc(pt)}</span></div>` : `<button class="link u-ptbtn" id="us-ptbtn">Ver explicação em português</button>`) : ""}</div>`
+          : `<button class="btn blue" id="us-show" style="margin-top:24px;width:100%">Mostrar resposta</button>`}</div>
+      <div class="fc-rate" ${US.shown ? "" : 'style="visibility:hidden"'}>
+        <button class="btn bad" data-uq="0">Errei<small>${fmtPlan(plan[0])}</small></button>
+        <button class="btn" data-uq="1">Difícil<small>${fmtPlan(plan[1])}</small></button>
+        <button class="btn primary" data-uq="2">Bom<small>${fmtPlan(plan[2])}</small></button>
+        <button class="btn" data-uq="3">Fácil<small>${fmtPlan(plan[3])}</small></button></div></div>`;
+    const show = $("#us-show"); if (show) show.addEventListener("click", () => { US.shown = true; usmleCard(); });
+    const ptb = $("#us-ptbtn"); if (ptb) ptb.addEventListener("click", () => { US.ptOpen = true; usmleCard(); });
+    $$("#us-area [data-uq]").forEach((b) => b.addEventListener("click", () => {
+      const q = Number(b.dataset.uq);
+      const rec = state.usmle.srs[x.key] || (state.usmle.srs[x.key] = { ivl: 0, ease: 2.5, due: 0, seen: 0, ok: 0, bad: 0 });
+      const p = usmleRate(rec, q);
+      state.stats.usmle++; state.stats.cards++; td().cards++; US.done++; save(); addXP(1);
+      if (p.min) US.learn.push({ x, due: rec.due });
+      US.cur = null; usmleNext();
+    }));
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!location.hash.startsWith("#/usmle/") || !$("#us-area") || !$("#modal").hidden || !US.cur) return;
+    const el = document.activeElement, tag = el ? el.tagName : "";
+    if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+    if (e.key === " " || e.key === "Enter") {
+      if (US.shown || (el && el.closest && el.closest("button, a"))) return;
+      e.preventDefault(); US.shown = true; usmleCard();
+    } else if (US.shown && /^[1-4]$/.test(e.key)) {
+      const b = $(`#us-area [data-uq="${Number(e.key) - 1}"]`); if (b) b.click();
+    } else if (US.shown && (e.key === "p" || e.key === "P")) { US.ptOpen = !US.ptOpen; usmleCard(); }
+  });
 
   /* ---------- Dicionário ---------- */
   const DICT = { q: "", unit: "", open: null, limit: 60 };
@@ -1208,9 +1551,11 @@
     ["case3", "Detetive clínico", "Resolva 3 casos clínicos", () => Object.keys(state.cases).length, 3],
     ["timed20", "Rápido no gatilho", "20 acertos no contra o relógio", () => state.stats.timedBest, 20],
     ["speak10", "Boa pronúncia", "10 pronúncias corretas", () => state.stats.speakOk, 10],
-    ["cards100", "Maratona de cards", "Revise 100 flashcards", () => state.stats.cards, 100]
+    ["cards100", "Maratona de cards", "Revise 100 flashcards", () => state.stats.cards, 100],
+    ["usmle100", "Rumo ao Step 1", "Estude 100 Flash cards USMLE", () => state.stats.usmle, 100],
+    ["usmle1000", "Mil cartões USMLE", "Estude 1.000 Flash cards USMLE", () => state.stats.usmle, 1000]
   ];
-  const BADGE_EMO = { first: "🎉", perfect: "💯", save1: "⭐", streak3: "🔥", streak7: "📅", streak30: "🏥", xp100: "⚡", xp500: "🌟", xp1500: "🚀", words50: "📘", words150: "📚", wordsall: "🧠", mine10: "🗂️", unit1: "👑", section1: "🦴", allunits: "🎓", case3: "🕵️", timed20: "⏱️", speak10: "🎤", cards100: "🃏" };
+  const BADGE_EMO = { first: "🎉", perfect: "💯", save1: "⭐", streak3: "🔥", streak7: "📅", streak30: "🏥", xp100: "⚡", xp500: "🌟", xp1500: "🚀", words50: "📘", words150: "📚", wordsall: "🧠", mine10: "🗂️", unit1: "👑", section1: "🦴", allunits: "🎓", case3: "🕵️", timed20: "⏱️", speak10: "🎤", cards100: "🃏", usmle100: "🧬", usmle1000: "🩺" };
   function checkBadges() {
     BADGES.forEach(([id, name, , cur, target]) => {
       if (!state.badges[id] && cur() >= target) { state.badges[id] = Date.now(); save(); setTimeout(() => toast(BADGE_EMO[id] + " Conquista desbloqueada: " + name), 900); }
@@ -1236,7 +1581,8 @@
         <div class="panel s4"><div class="panel-head"><h2>Rumo à formatura</h2></div>
           <p style="margin-bottom:8px">Nível ${lv}, ${titleOf(lv)}</p>${bar(state.xp - lo, hi - lo, lo + " XP", hi + " XP")}
           <p style="margin:20px 0 8px">Unidades concluídas: ${units} de ${UNITS.length} <span class="muted">(${stepsDoneTotal()} etapas)</span></p>${bar(units, UNITS.length, "0", String(UNITS.length))}
-          <p style="margin:20px 0 8px">Casos clínicos resolvidos: ${solved} de ${CASES.length}</p>${bar(solved, CASES.length, "0", String(CASES.length))}</div>
+          <p style="margin:20px 0 8px">Casos clínicos resolvidos: ${solved} de ${CASES.length}</p>${bar(solved, CASES.length, "0", String(CASES.length))}
+          <p style="margin:20px 0 8px">Flash cards USMLE estudados: ${usmleCounts().seen.toLocaleString("pt-BR")} de ${USMLE_TOTAL.toLocaleString("pt-BR")}</p>${bar(usmleCounts().seen, USMLE_TOTAL, "0", USMLE_TOTAL.toLocaleString("pt-BR"))}</div>
       </div>
       <div class="section-gap section-title"><h2 style="font-size:20px;line-height:28px">Conquistas</h2><p class="num">${got} de ${BADGES.length}</p></div>
       <div class="badge-grid">${BADGES.map(([id, name, desc, cur, target]) => {
@@ -1250,13 +1596,21 @@
   };
 
   /* ---------- Ajustes ---------- */
-  ROUTES.settings = function () {
+  ROUTES.settings = function (arg) {
     const s = state.settings;
     const sel = (id, opts, val) => `<select id="${id}">${opts.map(([v, l]) => `<option value="${v}" ${String(v) === String(val) ? "selected" : ""}>${l}</option>`).join("")}</select>`;
     const sw = (id, val, label) => `<label class="switch"><input type="checkbox" id="${id}" ${val ? "checked" : ""} aria-label="${esc(label)}"><span></span></label>`;
     const row = (title, desc, control) => `<div class="set-row"><div class="lbl"><b>${title}</b>${desc ? `<span>${desc}</span>` : ""}</div>${control}</div>`;
-    const sec = (key, title, desc, body) => `<section class="set-sec"><div><h2>${title}</h2><p>${desc}</p><p class="saved" id="saved-${key}">Salvo</p></div><div class="set-panel">${body}</div></section>`;
-    view.innerHTML = titleRow("Ajustes", `${esc(state.name || "Sem nome")} · meta diária de ${s.goal} XP · áudio em inglês ${s.accent === "en-US" ? "americano" : "britânico"}`) +
+    const sec = (key, title, desc, body) => `<section class="set-sec" id="sec-${key}"><div><h2>${title}</h2><p>${desc}</p><p class="saved" id="saved-${key}">Salvo</p></div><div class="set-panel">${body}</div></section>`;
+    const lvl = LEVEL(state.level), pl = state.placement;
+    view.innerHTML = titleRow("Ajustes", `${esc(state.name || "Sem nome")} · nível ${esc(lvl ? lvl.name : "não escolhido")} · meta diária de ${s.goal} XP`) +
+      sec("nivel", "Seu nível", "Define por onde a trilha começa. As unidades anteriores ficam abertas para revisar.",
+        `<div class="rows level-list">${levelRows(state.level)}</div>` +
+        row("Lição de triagem", pl ? `Última: ${new Date(pl.at).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}, indicou ${esc(LEVEL(pl.level).name)}` : "18 perguntas rápidas que indicam o seu nível",
+          `<a class="btn sm" href="#/placement">${pl ? "Refazer" : "Fazer agora"}</a>`)) +
+      sec("usmle", "Flash cards USMLE", "Como os cartões do Step 1 aparecem.",
+        row("Explicação em português", "Ligado: aparece junto com a resposta. Desligado: só quando você tocar em “Ver explicação”", sw("st-uspt", state.usmle.showPt, "Explicação em português")) +
+        row("Cartões novos por sessão", "Quantos cartões nunca vistos entram em cada sessão, além das revisões", sel("st-usnew", [[10, "10"], [20, "20"], [50, "50"], [100, "100"]], state.usmle.perSession))) +
       sec("perfil", "Perfil", "Como o app chama você e quanto estudar por dia.",
         row("Seu nome", "Aparece na saudação da tela inicial", `<input type="text" id="st-name" value="${esc(state.name)}" aria-label="Seu nome">`) +
         row("Meta diária", "A ofensiva conta os dias em que você ganha XP", sel("st-goal", [[10, "10 XP, cerca de 5 min"], [20, "20 XP, cerca de 10 min"], [30, "30 XP, cerca de 15 min"], [50, "50 XP, cerca de 25 min"]], s.goal))) +
@@ -1288,6 +1642,10 @@
     bind("st-sfx", "ex", (t) => (s.sfx = t.checked));
     bind("st-speech", "ex", (t) => (s.speech = t.checked));
     bind("st-free", "ex", (t) => (s.free = t.checked));
+    bind("st-uspt", "usmle", (t) => (state.usmle.showPt = t.checked));
+    bind("st-usnew", "usmle", (t) => (state.usmle.perSession = Number(t.value)));
+    $$("#sec-nivel [data-level]").forEach((b) => b.addEventListener("click", () => setLevel(b.dataset.level)));
+    if (arg === "nivel") $("#sec-nivel").scrollIntoView({ block: "start" });
     $("#st-test").addEventListener("click", () => speak("Take a deep breath and hold it."));
     $$("[data-theme-opt]").forEach((b) => b.addEventListener("click", () => {
       s.theme = b.dataset.themeOpt; save(); applyTheme(); stamp("look");
@@ -1351,19 +1709,24 @@
     m.cases = Object.assign({}, b.cases, a.cases);
     m.badges = Object.assign({}, b.badges, a.badges);
     Object.keys(m.stats).forEach((k) => { m.stats[k] = max(a.stats[k] || 0, (b.stats || {})[k] || 0); });
+    m.level = a.level || b.level; m.placement = a.placement || b.placement;
+    const bu = b.usmle || {};
+    m.usmle = Object.assign({}, bu, a.usmle); m.usmle.srs = Object.assign({}, a.usmle.srs);
+    Object.entries(bu.srs || {}).forEach(([id, x]) => { if (!m.usmle.srs[id] || (x.seen || 0) > (m.usmle.srs[id].seen || 0)) m.usmle.srs[id] = x; });
     m.onboarded = true;
     return m;
   }
   function summary(d) {
     const learned = Object.values(d.srs || {}).filter((x) => x.seen > 0).length;
     return `<div class="kv"><div><span>XP</span><b>${d.xp}</b></div><div><span>Palavras praticadas</span><b>${learned}</b></div>
-      <div><span>No meu dicionário</span><b>${Object.keys(d.mine || {}).length}</b></div><div><span>Etapas concluídas</span><b>${Object.values(d.units || {}).reduce((s, u) => s + u.length, 0)}</b></div></div>`;
+      <div><span>No meu dicionário</span><b>${Object.keys(d.mine || {}).length}</b></div><div><span>Etapas concluídas</span><b>${Object.values(d.units || {}).reduce((s, u) => s + u.length, 0)}</b></div>
+      <div><span>Flash cards USMLE estudados</span><b>${Object.values((d.usmle || {}).srs || {}).filter((x) => x.seen > 0).length}</b></div></div>`;
   }
   function applyImport(data, mode) {
-    const base = JSON.parse(JSON.stringify(DEFAULTS));
-    const incoming = Object.assign(base, data, { stats: Object.assign(base.stats, data.stats || {}), settings: Object.assign(base.settings, data.settings || {}) });
+    const incoming = hydrate(data);
     state = mode === "merge" ? mergeStates(state, incoming) : incoming;
-    state.onboarded = true; save(); applyTheme(); renderShell();
+    state.onboarded = true; if (!state.level) state.level = "inter1";
+    save(); applyTheme(); renderShell();
     toast(mode === "merge" ? "Progresso mesclado." : "Progresso carregado.");
   }
   function confirmImport(text, after) {

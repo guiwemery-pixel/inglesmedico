@@ -1,6 +1,6 @@
 # 🩺 Inglês Médico
 
-Plataforma gratuita, em HTML/CSS/JavaScript puro, para praticar **inglês médico** no estilo Duolingo: trilha com níveis, lições curtas, XP, ofensiva diária, flashcards com repetição espaçada, dicionário pessoal e casos clínicos simples.
+Plataforma gratuita, em HTML/CSS/JavaScript puro, para praticar **inglês médico** no estilo Duolingo, do inglês básico até o **USMLE**: nivelamento com lição de triagem, trilha por nível, lições curtas, XP, ofensiva diária, flashcards com repetição espaçada, **9.733 Flash cards USMLE Step 1**, dicionário pessoal e casos clínicos.
 
 ## Como usar
 
@@ -21,7 +21,10 @@ Na hora de carregar, se o navegador já tiver progresso, dá para **Mesclar** (f
 
 | Área | O que tem |
 |---|---|
-| **Aprender** | Trilha com 4 seções (A1 → B2) e 20 unidades. Cada unidade tem Lição 1, Lição 2, Lição 3, Leitura e Desafio final (é preciso 70% para passar). As unidades vão sendo desbloqueadas em sequência, ou todas de uma vez no *modo livre*. |
+| **Nivelamento** | No primeiro acesso, a pessoa escolhe o nível ou faz a **lição de triagem** (18 perguntas em 5 partes: inglês geral, inglês médico básico, inglês clínico, inglês avançado e conteúdo do Step 1). O resultado diz o nível e por onde começar. Dá para mudar o nível ou refazer a triagem em **Ajustes**. |
+| **Níveis** | **Básico** (“quero aprender inglês”): começa na Seção 0, inglês do zero. **Intermediário · Fase 1** (“já sei inglês, agora quero aprender inglês médico”): começa na Seção 1. **Intermediário · Fase 2**: começa na Seção 3. **Avançado** (“já sei bastante e quero me aprofundar”): começa na Seção 5 (C1). **USMLE** (“quero me preparar para a prova”): abre direto nos Flash cards USMLE. As seções anteriores ao ponto de partida ficam abertas para revisão. |
+| **Aprender** | Trilha com 6 seções (A0 → C1) e 28 unidades. Cada unidade tem Lição 1, Lição 2, Lição 3, Leitura e Desafio final (é preciso 70% para passar). As unidades vão sendo desbloqueadas em sequência a partir do nível, ou todas de uma vez no *modo livre*. |
+| **Flash cards USMLE** | 9.733 cartões originais do Step 1 em 16 matérias (Biochemistry, Behavioral Science, Cardiovascular, Embryology, Endocrinology, Gastrointestinal, Hematology & Oncology, Immunology, Microbiology, Musculoskeletal, Neurology, Pharmacology, Psychiatry, Renal, Reproductive, Respiratory). Pergunta e resposta em inglês; a explicação curta em português é **opcional**: aparece com um toque, ou sempre, se a chave “Explicação em PT” estiver ligada. Repetição espaçada própria, revisão do dia de todas as matérias, filtro por tema e atalhos de teclado (espaço, 1–4, P). |
 | **Exercícios** | Tradução EN↔PT, ouvir e escolher, definição → termo, completar lacunas, montar frases, combinar pares, escrever, ditado e pronúncia com microfone. Quem erra revê o exercício no fim da lição. |
 | **Praticar** | Revisão inteligente (repetição espaçada), treino misto, meus erros, meu dicionário, contra o relógio (60 s), ditado, pronúncia, prefixos e abreviações. |
 | **Flashcards** | Cartões que viram, em EN→PT ou PT→EN. Você avalia com Errei / Difícil / Bom / Fácil e o app agenda a próxima revisão (caixas de Leitner). |
@@ -42,12 +45,17 @@ O restante foi ampliado com base em informações de fontes oficiais de saúde: 
 ## Estrutura
 
 ```
-index.html      # casca da aplicação
-css/style.css   # estilos (responsivo, tema claro/escuro)
-js/data.js      # todo o conteúdo: unidades, palavras, leituras, casos, recursos
-js/charts.js    # gráfico de barras do Progresso (SVG, sem dependências)
-js/app.js       # lógica: trilha, exercícios, SRS, dicionário, progresso, ajustes
+index.html          # casca da aplicação
+css/style.css       # estilos (responsivo, tema claro/escuro)
+js/data.js          # conteúdo das Seções 1 a 4: unidades, palavras, leituras, casos, recursos
+js/data-niveis.js   # Seção 0 (Básico, inglês do zero) e Seção 5 (Avançado, C1)
+js/usmle/index.js   # índice dos Flash cards USMLE (matérias, temas e totais)
+js/usmle/<matéria>.js  # cartões de cada matéria, carregados só quando a matéria é aberta
+js/charts.js        # gráfico de barras do Progresso (SVG, sem dependências)
+js/app.js           # lógica: nível e triagem, trilha, exercícios, SRS, USMLE, dicionário, progresso, ajustes
 ```
+
+Cada cartão USMLE é `[id, pergunta, resposta em inglês, explicação em português]`. O progresso fica em `usmle.srs` no mesmo `localStorage` e entra no backup, no link de transferência e na mesclagem.
 
 ### Design
 
