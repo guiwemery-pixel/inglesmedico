@@ -198,7 +198,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .seg { display: inline-flex; border: 2px solid var(--border); border-radius: 14px; padding: 3px; gap: 3px; }
 .seg button { border: 0; background: transparent; height: 36px; padding: 0 14px; border-radius: 10px; cursor: pointer; color: var(--muted); font-weight: 800; }
 .seg button.on { background: var(--blue-light); color: var(--blue); }
-.switch { position: relative; width: 52px; height: 30px; flex: none; }
+.switch { position: relative; display: inline-block; vertical-align: middle; width: 52px; height: 30px; flex: none; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--locked); transition: background .15s; pointer-events: none; }
 .switch span::after { content: ""; position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; }
@@ -221,7 +221,9 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .unit-banner b { display: block; font-size: 20px; font-weight: 900; line-height: 1.2; }
 .unit-banner .emo { font-size: 38px; }
 .unit-banner .btn { color: var(--cd); }
-.unit-banner, .path { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); } .c-s1 { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); }
+/* Cor padrão: se uma seção não tiver cor própria, o balão e a faixa nunca ficam transparentes */
+.unit-banner, .path { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); }
+.c-s1 { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); }
 .c-s2 { --c: var(--blue); --cd: var(--blue-dark); --cl: var(--blue-light); }
 .c-s3 { --c: var(--purple); --cd: var(--purple-dark); --cl: var(--purple-light); }
 .c-s4 { --c: var(--orange); --cd: var(--orange-dark); --cl: var(--orange-light); }
