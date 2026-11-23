@@ -221,7 +221,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .unit-banner b { display: block; font-size: 20px; font-weight: 900; line-height: 1.2; }
 .unit-banner .emo { font-size: 38px; }
 .unit-banner .btn { color: var(--cd); }
-.c-s1 { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); }
+.unit-banner, .path { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); } .c-s1 { --c: var(--green); --cd: var(--green-dark); --cl: var(--green-light); }
 .c-s2 { --c: var(--blue); --cd: var(--blue-dark); --cl: var(--blue-light); }
 .c-s3 { --c: var(--purple); --cd: var(--purple-dark); --cl: var(--purple-light); }
 .c-s4 { --c: var(--orange); --cd: var(--orange-dark); --cl: var(--orange-light); }
