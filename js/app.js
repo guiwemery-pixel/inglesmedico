@@ -1216,7 +1216,7 @@
     return new Promise((res, rej) => {
       if (window.USMLE_DATA && window.USMLE_DATA[id]) { res(window.USMLE_DATA[id]); return; }
       const s = document.createElement("script");
-      s.src = "js/usmle/" + id + ".js?v=20261123";
+      s.src = "js/usmle/" + id + ".js?v=20261124";
       s.onload = () => (window.USMLE_DATA && window.USMLE_DATA[id] ? res(window.USMLE_DATA[id]) : rej(new Error("vazio")));
       s.onerror = () => rej(new Error("falha ao carregar"));
       document.head.appendChild(s);
@@ -1250,8 +1250,12 @@
     usmleCard();
   }
   const usmleLeft = () => (US.queue.length - US.i) + US.learn.length + (US.cur ? 1 : 0);
-  ROUTES.usmle = function (arg) {
-    if (arg && (UCLASS[arg] || arg === "due")) { usmleOpen(arg); return; }
+  // Rotas: #/usmle (matérias) · #/usmle/<matéria> (temas) · #/usmle/<matéria>/<tema ou all> (estudo) · #/usmle/due (revisão do dia)
+  const usPath = () => location.hash.replace(/^#\/?/, "").split("/").slice(1).map(decodeURIComponent);
+  ROUTES.usmle = function () {
+    const [cid, topic] = usPath();
+    if (cid === "due") { usmleOpen("due", "all"); return; }
+    if (cid && UCLASS[cid]) { if (topic) usmleOpen(cid, topic); else usmleClass(cid); return; }
     const all = usmleCounts();
     view.innerHTML = titleRow("Flash cards USMLE", `${USMLE_TOTAL.toLocaleString("pt-BR")} cartões originais do USMLE Step 1, em inglês, em ${USMLE_LIST.length} matérias. Cada resposta traz uma explicação curta em português, que aparece só se você quiser.`,
       all.due ? `<a class="btn blue" href="#/usmle/due">🔁 Revisar ${all.due} de hoje</a>` : "") +
@@ -1270,32 +1274,61 @@
       <p class="muted small" style="margin-top:16px">Cartões escritos do zero para esta plataforma, seguindo os temas do Step 1. Material de estudo: confira sempre com as fontes oficiais.</p>`;
     $("#us-pt").addEventListener("change", (e) => { state.usmle.showPt = e.target.checked; save(); $("#us-pt-cap").textContent = e.target.checked ? "Aparece junto com a resposta" : "Só quando você tocar"; });
   };
-  function usmleOpen(cid) {
+  const US_LOAD_ERR = `<p class="empty-line">Não foi possível carregar os cartões. Confira se a pasta js/usmle foi publicada junto com o site.</p>`;
+  // Ícone de cada tema pelo nome (Pathology, Pharmacology...); sem correspondência, usa o ícone da matéria
+  const TOPIC_EMO = [[/patho/i, "🔬"], [/pharm|antimicrob|immunosupp|drug|toxic/i, "💊"], [/physio|pharmacodyn/i, "⚙️"], [/anat/i, "🧍"],
+    [/genetic|molecular/i, "🧬"], [/cellular/i, "🧫"], [/lab/i, "🧪"], [/metabol|nutrition/i, "🍎"], [/epidem|biostat/i, "📊"], [/ethic/i, "⚖️"],
+    [/develop/i, "👶"], [/bacter/i, "🦠"], [/viro/i, "🧫"], [/myco/i, "🍄"], [/parasit/i, "🪱"], [/psycholog/i, "🧠"], [/system/i, "🩺"], [/lymph|immune/i, "🛡️"]];
+  const topicEmo = (name, c) => (TOPIC_EMO.find(([rx]) => rx.test(name)) || [0, c.icon])[1];
+  function topicCounts(cid, ti) {
+    const t = endOfToday(); let seen = 0, due = 0;
+    window.USMLE_DATA[cid][ti].cards.forEach((card) => { const r = state.usmle.srs[cid + ":" + card[0]]; if (!r || !r.seen) return; seen++; if (r.due <= t) due++; });
+    return { seen, due };
+  }
+  // Página da matéria: os temas (decks) em lista, como na página principal
+  function usmleClass(cid) {
+    const c = UCLASS[cid];
+    view.innerHTML = backLink("#/usmle", "Flash cards USMLE") + `<p class="empty-line">Carregando os temas…</p>`;
+    loadUsmle(cid).then((data) => {
+      if (usPath().join("/") !== cid) return; // o usuário já saiu da tela
+      const k = usmleCounts(cid);
+      const item = (href, emo, title, n, kk) => `<a class="ucls" href="${href}"><span class="emo" aria-hidden="true">${emo}</span><span class="main-col"><b>${title}</b>
+        <span class="st">${n} cartões · ${kk.seen} estudados${kk.due ? ` · <span class="due">${kk.due} para hoje</span>` : ""}</span>
+        <span class="bar" aria-label="${kk.seen} de ${n} estudados"><span style="width:${pct(kk.seen, n)}%"></span></span></span>${I("chev")}</a>`;
+      view.innerHTML = backLink("#/usmle", "Flash cards USMLE") +
+        titleRow(c.icon + " " + esc(c.en), `${esc(c.pt)} · ${c.n} cartões em ${c.topics.length} temas. Escolha um tema ou estude todos juntos.`,
+          k.due ? `<a class="btn blue" href="#/usmle/${cid}/all">🔁 Revisar ${k.due} de hoje</a>` : "") +
+        `<div class="usmle-grid">${item(`#/usmle/${cid}/all`, "📚", "Todos os temas", c.n, k)}${data.map((t, i) => item(`#/usmle/${cid}/${i}`, topicEmo(t.name, c), esc(t.name), t.cards.length, topicCounts(cid, i))).join("")}</div>`;
+    }).catch(() => { view.innerHTML = backLink("#/usmle", "Flash cards USMLE") + US_LOAD_ERR; });
+  }
+  function usmleOpen(cid, topic) {
     const classes = cid === "due" ? USMLE_LIST.filter((c) => usmleCounts(c.id).due) : [UCLASS[cid]];
-    view.innerHTML = backLink("#/usmle", "Flash cards USMLE") + `<p class="empty-line">Carregando os cartões…</p>`;
+    const back = cid === "due" ? backLink("#/usmle", "Flash cards USMLE") : backLink("#/usmle/" + cid, UCLASS[cid].en);
+    view.innerHTML = back + `<p class="empty-line">Carregando os cartões…</p>`;
+    const want = usPath().join("/");
     Promise.all(classes.map((c) => loadUsmle(c.id))).then(() => {
-      if (location.hash.replace(/^#\/?/, "") !== "usmle/" + cid) return; // o usuário já saiu da tela
-      if (US.lastCls !== cid) { US.topic = "all"; US.lastCls = cid; }
-      US.cls = cid; US.classes = classes; usmleStudy();
-    }).catch(() => {
-      view.innerHTML = backLink("#/usmle", "Flash cards USMLE") + `<p class="empty-line">Não foi possível carregar os cartões. Confira se a pasta js/usmle foi publicada junto com o site.</p>`;
-    });
+      if (usPath().join("/") !== want) return; // o usuário já saiu da tela
+      US.cls = cid; US.classes = classes;
+      US.topic = cid !== "due" && window.USMLE_DATA[cid][Number(topic)] ? String(Number(topic)) : "all";
+      usmleStudy();
+    }).catch(() => { view.innerHTML = back + US_LOAD_ERR; });
   }
   function usmleStudy() {
     const cid = US.cls, c = UCLASS[cid], k = usmleCounts(cid === "due" ? null : cid);
     US.queue = usmleQueue(); US.i = 0; US.cur = null; US.done = 0;
     const seg = (v, l) => `<button data-mode="${v}" class="${US.mode === v ? "on" : ""}" aria-pressed="${US.mode === v}">${l}</button>`;
-    view.innerHTML = backLink("#/usmle", "Flash cards USMLE") +
-      titleRow(cid === "due" ? "🔁 Revisão de hoje" : c.icon + " " + esc(c.en), cid === "due" ? "Os cartões de todas as matérias que vencem hoje." : `${esc(c.pt)} · ${c.n} cartões em ${c.topics.length} temas`) +
-      `<div class="toolbar">${cid === "due" ? "" : `<select id="us-topic" aria-label="Tema"><option value="all">Todos os temas (${c.n})</option>${c.topics.map(([n, q], i) => `<option value="${i}">${esc(n)} (${q})</option>`).join("")}</select>
-        <div class="seg" role="group" aria-label="Modo de estudo">${seg("smart", "Revisão + " + state.usmle.perSession + " novos")}${seg("all", "Todos em ordem")}</div>`}
+    const tname = cid === "due" ? "" : US.topic === "all" ? "Todos os temas" : window.USMLE_DATA[cid][Number(US.topic)].name;
+    const tn = cid === "due" ? 0 : US.topic === "all" ? c.n : window.USMLE_DATA[cid][Number(US.topic)].cards.length;
+    view.innerHTML = (cid === "due" ? backLink("#/usmle", "Flash cards USMLE") : backLink("#/usmle/" + cid, c.en)) +
+      titleRow(cid === "due" ? "🔁 Revisão de hoje" : (US.topic === "all" ? c.icon : topicEmo(tname, c)) + " " + esc(tname),
+        cid === "due" ? "Os cartões de todas as matérias que vencem hoje." : `${esc(c.en)} · ${tn} cartões`) +
+      `<div class="toolbar">${cid === "due" ? "" : `<div class="seg" role="group" aria-label="Modo de estudo">${seg("smart", "Revisão + " + state.usmle.perSession + " novos")}${seg("all", "Todos em ordem")}</div>`}
         <label class="pt-toggle"><span>Explicação em PT</span><span class="switch"><input type="checkbox" id="us-pt" ${state.usmle.showPt ? "checked" : ""} aria-label="Mostrar a explicação em português junto com a resposta"><span></span></span></label></div>
       <div class="grid12" style="align-items:start"><div class="s8" id="us-area"></div>
       <div class="s4" style="display:flex;flex-direction:column;gap:16px"><div class="panel"><div class="panel-head"><h2>${cid === "due" ? "Todas as matérias" : "Nesta matéria"}</h2></div><div class="kv">
         <div><span>Estudados</span><b>${k.seen}${cid === "due" ? "" : " de " + c.n}</b></div><div><span>Para revisar hoje</span><b>${k.due}</b></div><div><span>Firmes (7 dias ou mais)</span><b>${k.solid}</b></div></div>
         <p class="muted" style="margin-top:12px">Na primeira vez: Errei volta em 1 min, Difícil em 10 min, Bom em 1 dia e Fácil em 2 dias. Depois, cada resposta ajusta o intervalo: Difícil volta mais rápido, Bom espaça e Fácil demora mais para voltar.</p>
         <p class="muted small" style="margin-top:8px">Atalhos: espaço mostra a resposta, 1 a 4 avaliam, P abre o português.</p></div></div></div>`;
-    const t = $("#us-topic"); if (t) { t.value = US.topic; t.addEventListener("change", (e) => { US.topic = e.target.value; usmleStudy(); }); }
     $$("[data-mode]").forEach((b) => b.addEventListener("click", () => { US.mode = b.dataset.mode; usmleStudy(); }));
     $("#us-pt").addEventListener("change", (e) => { state.usmle.showPt = e.target.checked; save(); usmleCard(); });
     usmleNext();
@@ -1308,7 +1341,7 @@
       const wait = Math.max(0, US.learn[0].due - Date.now()), mins = Math.ceil(wait / MIN);
       area.innerHTML = `<div class="fc-stage"><div class="panel-head"><h2>Quase lá</h2></div>
         <p class="empty-line">${plural(US.learn.length, "cartão volta", "cartões voltam")} em breve. O próximo aparece em ${mins <= 1 ? "menos de 1 minuto" : mins + " minutos"}.</p>
-        <div class="row wrap" style="margin-top:12px"><button class="btn primary" id="us-now">Mostrar agora</button><a class="btn" href="#/usmle">Outra matéria</a></div></div>`;
+        <div class="row wrap" style="margin-top:12px"><button class="btn primary" id="us-now">Mostrar agora</button>${US.cls === "due" ? `<a class="btn" href="#/usmle">Outra matéria</a>` : `<a class="btn" href="#/usmle/${US.cls}">Outro tema</a>`}</div></div>`;
       $("#us-now").addEventListener("click", () => { US.cur = US.learn.shift().x; US.shown = false; US.ptOpen = false; usmleCard(); });
       US.timer = setTimeout(() => { if ($("#us-area") && !US.cur) usmleNext(); }, Math.min(wait + 200, 30000));
       return;
@@ -1318,7 +1351,7 @@
         ? (US.cls === "due" ? "Nenhum cartão vence hoje. Volte amanhã." : US.mode === "smart" ? "Nada vencido e nenhum cartão novo neste tema." : "Este tema não tem cartões.")
         : `Você respondeu ${plural(US.done, "cartão", "cartões")} nesta sessão.`;
       area.innerHTML = `<div class="fc-stage"><div class="panel-head"><h2>${US.done ? "Sessão concluída 🎉" : "Tudo em dia"}</h2></div><p class="empty-line">${msg}</p>
-        <div class="row wrap" style="margin-top:12px">${US.cls !== "due" && US.mode === "smart" ? `<button class="btn primary" id="us-more">Mais ${state.usmle.perSession} cartões</button>` : ""}<a class="btn" href="#/usmle">Outra matéria</a></div></div>`;
+        <div class="row wrap" style="margin-top:12px">${US.cls !== "due" && US.mode === "smart" ? `<button class="btn primary" id="us-more">Mais ${state.usmle.perSession} cartões</button>` : ""}${US.cls === "due" ? `<a class="btn" href="#/usmle">Outra matéria</a>` : `<a class="btn" href="#/usmle/${US.cls}">Outro tema</a>`}</div></div>`;
       const more = $("#us-more"); if (more) more.addEventListener("click", usmleStudy);
       return;
     }
