@@ -1216,7 +1216,7 @@
     return new Promise((res, rej) => {
       if (window.USMLE_DATA && window.USMLE_DATA[id]) { res(window.USMLE_DATA[id]); return; }
       const s = document.createElement("script");
-      s.src = "js/usmle/" + id + ".js";
+      s.src = "js/usmle/" + id + ".js?v=20261123";
       s.onload = () => (window.USMLE_DATA && window.USMLE_DATA[id] ? res(window.USMLE_DATA[id]) : rej(new Error("vazio")));
       s.onerror = () => rej(new Error("falha ao carregar"));
       document.head.appendChild(s);
